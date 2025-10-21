@@ -15,3 +15,5 @@ Some of them are my own, others are from ChatGPT, Gemini, and other AI systems. 
 | [**Migrate Git Repo/**](gitmigrate/README.md) | Move a local Git repository to a new GitHub repository, rewrite its history, and unify all commit authors and dates. |
 | [**Merge Policies/**](mergepolicy/README.md) | Compares the three main Git strategies — Merge, Rebase, and Squash — to show how each one affects the project's commit history when combining branches. |
 | [**New Repo Workflow/**](newrepoworkflow/README.md) | Create new Repo with gh `gh` CLI. |
+| [**Thunderbird PGP/**](thunderbirdpgp/README.md) | Thoughts on Thunderbird and Digital Sign. |
+
