@@ -1,10 +1,10 @@
 # Arch Linux auf neue SSD umziehen
 
-## Status 
+## Ist-Zustand der Dual-Boot-Konfiguration
 
-Dein aktueller Arch Linux Dual-Boot befindet sich auf der alten NVMe-SSD (/dev/nvme1n1), die auch deine Windows 11-Installation (nvme1n1p3) enthält. Die alte Linux-Installation nutzt dort drei Partitionen: EFI (nvme1n1p1), Swap (nvme1n1p4) und die Root-Partition (nvme1n1p6).
+Dein aktueller **Arch Linux Dual-Boot** befindet sich auf der alten NVMe-SSD (`/dev/nvme1n1`), die auch deine Windows 11-Installation (`nvme1n1p3`) enthält. Die alte Linux-Installation nutzt dort drei Partitionen: **EFI** (`nvme1n1p1`), **Swap** (`nvme1n1p4`) und die **Root-Partition** (`nvme1n1p6`).
 
-Für die Migration wurde eine neue, leere NVMe-SSD (/dev/nvme0n1) in deinem Rechner verbaut, die nun bereit zur Partitionierung und zum Empfang der gek
+Für die Migration wurde eine **neue, leere NVMe-SSD** (`/dev/nvme0n1`) in deinem Rechner verbaut, die nun bereit zur Partitionierung und zum Empfang der geklonten Arch Linux-Daten ist.
 
 ## Workflow
 
