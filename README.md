@@ -16,4 +16,5 @@ Some of them are my own, others are from ChatGPT, Gemini, and other AI systems. 
 | [**Merge Policies/**](mergepolicy/README.md) | Compares the three main Git strategies — Merge, Rebase, and Squash — to show how each one affects the project's commit history when combining branches. |
 | [**New Repo Workflow/**](newrepoworkflow/README.md) | Create new Repo with gh `gh` CLI. |
 | [**Thunderbird PGP/**](thunderbirdpgp/README.md) | Thoughts on Thunderbird and Digital Sign. |
+| [**Arch Linux Migration to new SSD/**](archlinnewssd/README.md) | Migrate existing Arch Linux to new SSD. |
 
