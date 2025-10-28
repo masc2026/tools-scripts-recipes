@@ -2,17 +2,17 @@
 
 ## Ist-Zustand der Dual-Boot-Konfiguration
 
-Dein aktueller **Arch Linux Dual-Boot** befindet sich auf der alten NVMe-SSD (`/dev/nvme1n1`), die auch deine Windows 11-Installation (`nvme1n1p3`) enthält. Die alte Linux-Installation nutzt dort drei Partitionen: **EFI** (`nvme1n1p1`), **Swap** (`nvme1n1p4`) und die **Root-Partition** (`nvme1n1p6`).
+Die aktuelle **Arch Linux Dual-Boot** befindet sich auf der alten NVMe-SSD (`/dev/nvme1n1`), die auch eine Windows 11-Installation (`nvme1n1p3`) enthält. Die alte Linux-Installation nutzt dort drei Partitionen: **EFI** (`nvme1n1p1`), **Swap** (`nvme1n1p4`) und die **Root-Partition** (`nvme1n1p6`).
 
-Für die Migration wurde eine **neue, leere NVMe-SSD** (`/dev/nvme0n1`) in deinem Rechner verbaut, die nun bereit zur Partitionierung und zum Empfang der geklonten Arch Linux-Daten ist.
+Für die Migration wurde eine **neue, leere NVMe-SSD** (`/dev/nvme0n1`) in den Rechner verbaut, die nun bereit zur Partitionierung und zum Empfang der geklonten Arch Linux-Daten ist.
 
 ## Workflow
 
 ### Phase 1: Vorbereitung im UEFI und Arch Live System
 
 1.  **UEFI-Zugriff:** Rechner mit eingestecktem Arch Linux Live USB-Stick starten. Sofort die Taste **`Entf`** (Delete) drücken, um das MSI UEFI/BIOS aufzurufen.
-2.  **Boot-Auswahl:** Im UEFI navigierst du zum Boot-Menü und wählst den **UEFI-Eintrag** deines USB-Sticks aus, um das Arch Linux Live System zu starten.
-3.  **Tastatur-Layout einstellen:** Sobald du in der Arch Live Console bist, stellst du das deutsche Tastaturlayout ein.
+2.  **Boot-Auswahl:** Im UEFI zum Boot-Menü navigieren und den **UEFI-Eintrag** des USB-Sticks auswählen, um das Arch Linux Live System zu starten.
+3.  **Tastatur-Layout einstellen:** Sobald die Arch Live Console kommt, das deutsche Tastaturlayout einstellen.
     ```bash
     loadkeys de-latin1
     ```
@@ -57,10 +57,9 @@ swapon /dev/nvme0n1p2
 mkfs.ext4 -L arch /dev/nvme0n1p3
 ```
 
+### Phase 3: Datenmigration und fstab-Abgleich
 
-### Phase 3: Datenmigration und System-Update
-
-#### 1\. Partitionen einbinden (Mounten)
+#### 1\. Partitionen einbinden und Daten kopieren
 
 ```bash
 # Neue Root-Partition als Ziel
@@ -69,28 +68,41 @@ mount /dev/nvme0n1p3 /mnt
 # Alte Root-Partition als Quelle
 mkdir /mnt/old_system
 mount /dev/nvme1n1p6 /mnt/old_system
-```
 
-#### 2\. Dateisystem kopieren
-
-```bash
+# Daten kopieren (rsync)
 rsync -aAXv /mnt/old_system/ /mnt/ --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/lost+found"}
 ```
+#### 2\. fstab-Abgleich und Bereinigung
 
-#### 3\. Systemkonfiguration anpassen (`fstab`)
+Hier sichern wir die mitkopierten (`rsync`) externen Einträge, bereinigen die doppelten System-Einträge und erstellen die `fstab` neu.
 
 ```bash
-# Alte Quelle aushängen
+# 1. Alte Quelle aushängen (Vorbereitung für genfstab)
 umount /mnt/old_system
 rmdir /mnt/old_system
 
-# Neue EFI-Partition mounten
+# 2. Neue EFI-Partition mounten
 mkdir -p /mnt/boot/efi 
 mount /dev/nvme0n1p1 /mnt/boot/efi
 
-# fstab mit UUIDs der gemounteten Partitionen NEU generieren
+# 3. fstab für den Abgleich sichern (enthält alte und externe Einträge)
+cp /mnt/etc/fstab /mnt/etc/fstab.backup_external
+
+# 4. fstab leeren und mit den NEUEN System-Partitionen generieren
+> /mnt/etc/fstab
 genfstab -U /mnt > /mnt/etc/fstab
+
+# 5. Externe Einträge hinzufügen (Beispiel: /mnt/lightroomssd)
+# Wir suchen nach der Zeile für /mnt/lightroomssd im Backup und hängen sie an
+echo "" >> /mnt/etc/fstab # Optional: Eine Leerzeile für die Übersicht
+grep 'lightroomssd' /mnt/etc/fstab.backup_external >> /mnt/etc/fstab
+
+# 6. NEUE fstab zur Überprüfung anzeigen
+cat /mnt/etc/fstab
 ```
+
+*Prüfen, ob alle drei System-Partitionen (`/`, `/boot/efi`, `swap`) und `/mnt/lightroomssd`-Eintrag korrekt mit der richtigen UUID vorhanden sind.*
+
 
 #### 4\. Bootloader und Initramfs aktualisieren
 
@@ -162,13 +174,13 @@ Wir löschen die alte Swap (`p4`), Root (`p6`) und die ungenutzte Partition (`p2
 Da die zu erweiternde Partition (`nvme1n1p3`) eine NTFS-Partition ist und sich jetzt direkt vor dem freien Speicherplatz befindet, ist es am einfachsten und sichersten, die Erweiterung **unter Windows** vorzunehmen.
 
 1.  **Neustart** in Windows 11.
-2.  Öffne die **Datenträgerverwaltung** (Rechtsklick auf das Startmenü -\> Datenträgerverwaltung).
+2.  Öffnen der **Datenträgerverwaltung** (Rechtsklick auf das Startmenü -\> Datenträgerverwaltung).
 3.  Rechtsklick auf die Windows-Partition (`nvme1n1p3`).
-4.  Wähle **Volume erweitern** und folge den Anweisungen, um den gesamten angrenzenden, nicht zugewiesenen Speicherplatz hinzuzufügen.
+4.  **Volume erweitern** wählen und den Anweisungen folgen, um den gesamten angrenzenden, nicht zugewiesenen Speicherplatz hinzuzufügen.
 
 #### 3\. GRUB-Menü bereinigen
 
-Nachdem die alten Linux-Partitionen gelöscht wurden, musst du GRUB anweisen, die alten, nun nicht mehr bootfähigen Einträge zu entfernen.
+Nachdem die alten Linux-Partitionen gelöscht wurden, GRUB anweisen, die alten, nun nicht mehr bootfähigen Einträge zu entfernen.
 
 1.  **Starte zurück in Arch Linux.**
 2.  **GRUB-Konfiguration neu erstellen:**
