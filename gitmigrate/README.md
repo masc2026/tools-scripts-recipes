@@ -25,6 +25,12 @@ Navigate into the project directory:
 cd ~/Projects/my-repo
 ```
 
+Remove origin:
+
+```bash
+git remote remove origin
+```
+
 ## Step 2: Create and Push to GitHub
 
 Use the GitHub CLI (`gh`) to create a new repository. This command will also set up your local `origin` remote and push your *current* (uncleaned) history to GitHub.
