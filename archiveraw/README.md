@@ -1,4 +1,4 @@
-# Lightroom RAW Import Skript
+# Archivieren von RAW Bilddateien von SD
 
 Zsh-Skript für Import und Abgleich von RAW-Bilddateien (z.B. von einer SD-Karte) in eine datumsbasierte Verzeichnisstruktur (z.B. für Lightroom).
 
