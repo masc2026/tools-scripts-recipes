@@ -1,8 +1,6 @@
 # Sammlung für Werkzeuge, Skripte, Rezepte
 
-Sammlung von **Werkzeugen, Skripten und Rezepten, z.B. für Admin AUfgaben**.
-
-Eigene Skripte und AI teil-generierte Skripte (ChatGPT, Gemini). Hauptsächlich für Eigennutzung und als Gedächtnisstütze.
+Eigene Skripte und AI generierte Skripte (ChatGPT, Gemini). Für Archivierung und als Gedächtnisstütze.
 
 -----
 
