@@ -17,3 +17,4 @@ Eigene Skripte und AI generierte Skripte (ChatGPT, Gemini). Für Archivierung un
 | [**Arch Linux Migration to new SSD/**](archlinnewssd/README.md) | Bestehendes Arch Linux auf neue SSD umziehen. |
 | [**Archive RAW/**](archiveraw/README.md) | RAW-Fotos (z.B. von SD-Karte) automatisch in Datumsordner kopieren. |
 | [**TXZ Archiv File validieren/**](validatetxzfiles/README.md) | TXZ Archiv File validieren. |
+| [**Movie Inventarisierung und Metadatenanreicherung mit AI (Gemini)/**](movietags/README.md) | Movie Files Inventarisierung und Metadata Tools. |
