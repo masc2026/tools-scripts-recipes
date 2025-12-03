@@ -68,9 +68,36 @@ Das Skript `enrich_metadata.py` analysiert Einträge ohne Titel in der JSON-Date
   * **Optionen:**
       * `--limit-batches N`: Begrenzung auf N Stapel (Chunks) zu je 10 Filmen (z.B. zum Testen).
 
+  ## Andere Skripten
+
+  ### `generate_cover.zsh`
+
+  Das Skript erstellt und schreibt Cover. 
+  
+  Das Cover und die Ansichten in der TV App (macOS 26 und iPadOS 26):
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="data/img/Screen04.png" height="300">
+    </td>
+    <td align="center">
+      <img src="data/img/Screen03.png" height="300">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="data/img/Screen01.png" height="300">
+    </td>
+    <td align="center">
+      <img src="data/img/Screen02.png" height="300">
+    </td>
+  </tr>
+</table>
+
 ## Dateistruktur
 
   * `data/`: Beispiele Inventar-Dateien (`filme_inventory.json` und `done_filme_inventory.json` ausgefüllt).
   * `inventory.zsh`: Zsh-Skript zum Scannen der Festplatte.
   * `enrich_metadata.py`: Python-Skript zur KI-gestützten Datenvervollständigung.
-  * `inventory.zsh`: Weiteres Zsh-Skript zum Erstellen und Schreiben einheitlicher Cover ("macOS 26 und TV App konform").
+  * `generate_cover.zsh`: Weiteres Zsh-Skript zum Erstellen und Schreiben einheitlicher Cover ("macOS 26 und TV App konform").

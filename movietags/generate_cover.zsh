@@ -1,14 +1,13 @@
 #!/bin/zsh
 
 # --- Konfiguration ---
-EXTENSIONS="(mp4|m4v|mov|mpeg)"
+EXTENSIONS="(mp4|m4v|mov)"
 # Filter (optional)
-# Beispiel: 'Hitchcock' ohne 'Vorhang'
+# Beispiel 1: 'Hitchcock' ohne 'Vorhang'
 # EXCLUDE_STR="(Vorhang)" 
 # INCLUDE_STR="(Hitchcock)" 
-# Beispiel: 'Tatort' und 'Tod'
-#INCLUDE_STR="(Tatort*Hüter|Hüter*Tatort)"
-#INCLUDE_STR="(Tatort)" 
+# Beispiel 2: 'Tatort' und 'Tod'
+# INCLUDE_STR="(Tatort*Tod|Tod*Tatort)"
 
 # Dry Run Check
 DRY_RUN="false"
@@ -127,7 +126,8 @@ for file in "${files[@]}"; do
 
     if [[ -z "$artist" ]]; then
         magick -size ${WIDTH}x${HEIGHT} xc:grey66 \
-            -colorspace sRGB -interlace Plane \
+            -depth 8 \
+            -colorspace sRGB \
             -density 72 -units PixelsPerInch \
             -gravity center \
             \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
@@ -137,7 +137,8 @@ for file in "${files[@]}"; do
 
     else
         magick -size ${WIDTH}x${HEIGHT} xc:grey66 \
-            -colorspace sRGB -interlace Plane \
+            -depth 8 \
+            -colorspace sRGB \
             -density 72 -units PixelsPerInch \
             -gravity center \
             \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
