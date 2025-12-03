@@ -73,3 +73,4 @@ Das Skript `enrich_metadata.py` analysiert Einträge ohne Titel in der JSON-Date
   * `data/`: Beispiele Inventar-Dateien (`filme_inventory.json` und `done_filme_inventory.json` ausgefüllt).
   * `inventory.zsh`: Zsh-Skript zum Scannen der Festplatte.
   * `enrich_metadata.py`: Python-Skript zur KI-gestützten Datenvervollständigung.
+  * `inventory.zsh`: Weiteres Zsh-Skript zum Erstellen und Schreiben einheitlicher Cover ("macOS 26 und TV App konform").
