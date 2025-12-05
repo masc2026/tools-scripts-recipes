@@ -2,31 +2,54 @@
 
 # --- Konfiguration ---
 EXTENSIONS="(mp4|m4v|mov)"
-# Filter (optional)
-# Beispiel 1: 'Hitchcock' ohne 'Vorhang'
-# EXCLUDE_STR="(Vorhang)" 
-# INCLUDE_STR="(Hitchcock)" 
-# Beispiel 2: 'Tatort' und 'Tod'
-# INCLUDE_STR="(Tatort*Tod|Tod*Tatort)"
+# Filter Beispiele:
+# EXCLUDE_STR="(Lynch)" 
+# INCLUDE_STR="(Polat)" 
+# INCLUDE_STR="(Tatort*Reini|Reini*Tatort)"
 
-# Dry Run Check
+# Standardwerte
 DRY_RUN="false"
+FORCE="false"
+
+# Argumente prüfen
 if [[ "${@}" =~ "--dry-run" ]]; then
     DRY_RUN="true"
     echo "--- DRY RUN MODUS ---"
+fi
+
+if [[ "${@}" =~ "--force" ]]; then
+    FORCE="true"
+    echo "--- FORCE MODUS AKTIV ---"
 fi
 
 setopt extendedglob
 setopt nullglob
 
 # Dependencies Check
-if ! command -v convert &> /dev/null; then echo "Fehler: ImageMagick (convert) fehlt."; exit 1; fi
-if ! command -v AtomicParsley &> /dev/null; then echo "Fehler: AtomicParsley fehlt."; exit 1; fi
-if ! command -v ffprobe &> /dev/null; then echo "Fehler: ffprobe fehlt."; exit 1; fi
+# Liste der benötigten Programme
+DEPENDENCIES=(ffmpeg ffprobe AtomicParsley magick)
 
-# Hilfsfunktion
+for cmd in "${DEPENDENCIES[@]}"; do
+    if ! command -v "$cmd" &> /dev/null; then
+        echo "FEHLER: Der Befehl '$cmd' wurde nicht gefunden."
+        echo "Bitte installieren (z.B. mit 'brew install $cmd')."
+        exit 1
+    fi
+done
+
+# Hilfsfunktion für ffprobe (liefert leeren String zurück, wenn Tag fehlt)
 get_tag() {
-    ffprobe -v error -show_entries format_tags="$2" -of default=noprint_wrappers=1:nokey=1 "$1"
+    local file="$1"
+    local tag="$2"
+
+    if [[ "$tag" == "cover" ]]; then
+        ffprobe -v error -select_streams v \
+            -show_entries stream_disposition=attached_pic \
+            -of default=noprint_wrappers=1:nokey=1 "$file" | grep -m 1 "1"
+    else
+        ffprobe -v error -show_entries format_tags="$tag" \
+            -of default=noprint_wrappers=1:nokey=1 "$file"
+    fi
 }
 
 # Dateien suchen
@@ -62,16 +85,10 @@ echo "---------------------------------------------------"
 
 for file in "${files[@]}"; do
     basename="${file:r:t}"
+    extension="${file:e}"
 
-    # 1. Prüfen: Hat die Datei schon ein Cover?
-    # Wir leiten stderr um, um Warnungen zu unterdrücken
-    has_cover=$(AtomicParsley "$file" -T 1 2>/dev/null | grep "covr")
-    
-    if [[ -n "$has_cover" ]]; then
-        # continue
-    fi
-
-    # 2. Metadaten lesen
+    # 1. Metadaten lesen bzw, Cover check
+    has_cover=$(get_tag "$file" "cover")
     title=$(get_tag "$file" "title")
     show=$(get_tag "$file" "show")
     season_number=$(get_tag "$file" "season_number")
@@ -106,19 +123,33 @@ for file in "${files[@]}"; do
 
     [[ -z "${artist// }" ]] && unset artist
 
-    if [[ -z "$artist" ]]; then echo "artist unset"; else echo "artist set"; fi
+    # --- ENTSCHEIDUNG ---
+
+    if [[ -n "$has_cover" ]] && [[ "$FORCE" == "false" ]]; then
+        [[ "$DRY_RUN" == "true" ]] && echo "[SKIP] Cover bereits vorhanden: $basename"
+        continue
+    fi
+
+    echo "Datei: $file"
     
+    if [[ -n "$has_cover" && "$FORCE" == "true" ]]; then
+         echo "  [FORCE] Überschreibe existierendes Cover."
+    fi
+
     echo "Generiere Cover für: $basename"
-    echo "  -> Text: $title ($artist)"
+    echo "  -> Text: $title ${artist:+($artist)}"
 
-    if [[ "$DRY_RUN" == "true" ]]; then continue; fi
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "  [DRY-RUN] Würde ImageMagick und AtomicParsley starten."
+        continue
+    fi
 
-    # 3. Temporärer Dateinamen für Artwork Bild
+    # 2. Temporärer Dateinamen für Artwork Bild
 
     safe_name="${basename//[^a-zA-Z0-9]/_}"
     cover_file="/tmp/cover_${safe_name}.png"
 
-    # 4. Bild mit ImageMagick erstellen (mit automatischem Umbruch!)
+    # 3. Bild mit ImageMagick erstellen (mit automatischem Umbruch!)
 
     WIDTH=540
     HEIGHT=720
@@ -150,18 +181,52 @@ for file in "${files[@]}"; do
             "$cover_file"
     fi
 
-    # 5. Bild schreiben mit AtomicParsley
+    # 4. Bild schreiben mit AtomicParsley oder ffmpeg als fall BACK
 
-    AtomicParsley "$file" --artwork REMOVE_ALL --artwork "$cover_file" --overWrite > /dev/null
-    
-    if [[ $? -eq 0 ]]; then
-        echo "     [OK] Cover eingebettet."
+    # Versuch 1: AtomicParsley
+    # Wir fangen Fehler ab (2> /dev/null wegnehmen, um Fehler zu sehen, oder in Variable speichern)
+    if AtomicParsley "$file" --artwork REMOVE_ALL --artwork "$cover_file" --overWrite >/dev/null 2>&1; then
+        echo "     [OK] Cover eingebettet (AtomicParsley)."
     else
-        echo "     [ERROR] Fehler beim Einbetten."
+        # Versuch 2: FFmpeg Fallback
+        echo "     [WARNUNG] AtomicParsley fehlgeschlagen (zu wenig Header-Platz oder .mov Container)."
+        echo "     -> Starte FFmpeg Fallback (Reparatur & Umwandlung in .m4v)..."
+        
+        # WICHTIG: Wir ändern die Endung auf .m4v!
+        # Das löst alle Container-Probleme mit Apple TV und AtomicParsley.
+        temp_ffmpeg="${file:r}_fixed.m4v"
+        
+        ffmpeg -hide_banner -loglevel error \
+            -i "$file" -i "$cover_file" \
+            -map "0:v" -map "0:a" -map "0:s?" \
+            -map 1 \
+            -c copy \
+            -dn \
+            -f mp4 \
+            -movflags +faststart \
+            -disposition:v:1 attached_pic \
+            "$temp_ffmpeg"
+            
+        if [[ $? -eq 0 ]]; then
+            # Wenn erfolgreich: Alte Datei löschen und neue behalten
+            mv "$temp_ffmpeg" "${file:r}.m4v"
+            
+            # Falls die Originaldatei NICHT .m4v hieß (z.B. .mov), löschen wir das Original
+            if [[ "${file}" != "${file:r}.m4v" ]]; then
+                rm "$file"
+                echo "     [INFO] Datei wurde von .${file:e} zu .m4v konvertiert."
+            fi
+            
+            echo "     [OK] Cover eingebettet & Container repariert."
+        else
+            echo "     [ERROR] Auch FFmpeg ist gescheitert."
+            rm -f "$temp_ffmpeg"
+        fi
     fi
-
+    
     # Aufräumen
     rm -f "$cover_file"
+    
 done
 
 echo "\nFertig."

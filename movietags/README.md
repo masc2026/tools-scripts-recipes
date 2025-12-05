@@ -70,7 +70,7 @@ Das Skript `enrich_metadata.py` analysiert Einträge ohne Titel in der JSON-Date
 
   ## Andere Skripten
 
-  ### `generate_cover.zsh`
+  ### `cover.zsh`
 
   Das Skript erstellt und schreibt Cover. 
   
@@ -95,9 +95,14 @@ Das Skript `enrich_metadata.py` analysiert Einträge ohne Titel in der JSON-Date
   </tr>
 </table>
 
+  ### `tag.zsh`
+
+  Das Skript liest Tag Wert aus dem Filename und schreibt sie ins File. 
+
 ## Dateistruktur
 
   * `data/`: Beispiele Inventar-Dateien (`filme_inventory.json` und `done_filme_inventory.json` ausgefüllt).
   * `inventory.zsh`: Zsh-Skript zum Scannen der Festplatte.
-  * `enrich_metadata.py`: Python-Skript zur KI-gestützten Datenvervollständigung.
-  * `generate_cover.zsh`: Weiteres Zsh-Skript zum Erstellen und Schreiben einheitlicher Cover ("macOS 26 und TV App konform").
+  * `metadata.py`: Python-Skript zur KI-gestützten Datenvervollständigung.
+  * `cover.zsh`: Weiteres Zsh-Skript zum Erstellen und Schreiben einheitlicher Cover ("macOS 26 und TV App konform").
+  * `tag.zsh`: Weiteres Zsh-Skript zum Erstellen und Schreiben der Tags aus dem Filenamen ("macOS 26 und TV App konform").
