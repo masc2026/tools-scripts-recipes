@@ -114,9 +114,7 @@ for file in "${files[@]}"; do
     # Absoluter Pfad der Datei
     abs_path="${file:A}"
     # Dateiname (Key für die DB)
-    basename="${file:t}" # t = tail (nur Dateiname inkl Endung)
-    # Dateiname ohne Endung (für Anzeige/basename Feld)
-    # name_only="${file:r:t}"
+    basename="${file:t:r}" # t = tail (nur Dateiname inkl Endung)
 
     is_known="false"
     current_nr=0

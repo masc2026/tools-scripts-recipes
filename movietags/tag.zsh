@@ -91,9 +91,9 @@ echo "Prüfe ${#files} Dateien..."
 echo "---------------------------------------------------"
 
 for file in "${files[@]}"; do
-    basename="${file:r}"
+    basename="${file:t:r}"
     extension="${file:e}"
-    
+
     # Variablen resetten
     new_artist="" new_show="" new_title="" new_season="" new_episode="" new_total=""
     match_found="false"

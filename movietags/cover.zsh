@@ -87,7 +87,7 @@ echo "Prüfe ${#files} Dateien auf fehlende Cover..."
 echo "---------------------------------------------------"
 
 for file in "${files[@]}"; do
-    basename="${file:r:t}"
+    basename="${file:t:r}"
     extension="${file:e}"
 
     # 1. Metadaten lesen bzw, Cover check

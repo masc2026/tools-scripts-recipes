@@ -1,6 +1,6 @@
 # Movie Files Inventarisierung und Metadata Tool
 
-Inventariesierung und Metadaten-Anreicherung für lokale Videosammlungen. Nutzung der Google Gemini API zur Identifizierung von Filmtiteln und Regisseuren basierend auf Dateinamen.
+Inventarisierung, Metadaten-Anreicherung und Cover-Erstellung für lokale Videosammlungen. Die Tools sorgen für eine korrekte Darstellung in der Apple TV App (macOS/iPadOS).
 
 ## Voraussetzungen
 
@@ -9,7 +9,10 @@ Inventariesierung und Metadaten-Anreicherung für lokale Videosammlungen. Nutzun
   * **Tools:**
       * `jq` (JSON-Verarbeitung)
       * `python3` (ab Version 3.9 empfohlen)
-  * **API-Zugriff:** Google AI Studio Key (Gemini)
+      * `ffmpeg` (inkl. `ffprobe`)
+      * `atomicparsley` (Metadaten schreiben)
+      * `imagemagick` (Cover erstellen)
+  * **API-Zugriff:** Google AI Studio Key (Gemini) – *nur für `enrich_metadata.py` nötig*
 
 ## Installation
 
@@ -18,63 +21,94 @@ Installation der System-Abhängigkeiten:
 **macOS (Homebrew):**
 
 ```bash
-brew install jq python
+brew install jq python ffmpeg atomicparsley imagemagick
 ```
 
 **Linux (Debian/Ubuntu/Arch):**
 
 ```bash
-sudo apt install jq python3
-# oder
-sudo pacman -S jq python
+# Beispiel für Debian/Ubuntu
+sudo apt install jq python3 ffmpeg atomicparsley imagemagick
 ```
 
-Installation der Python-Bibliothek:
+Installation der Python-Bibliothek (nur für KI-Anreicherung):
 
 ```bash
 pip install google-generativeai
 ```
 
-## Verwendung
+## Empfohlener Workflow
 
-### 1\. Bestandsaufnahme erstellen
+Die Skripte bauen logisch aufeinander auf. Es wird folgende Reihenfolge empfohlen:
 
-Das Skript `inventory.zsh` durchsucht angegebene Verzeichnisse rekursiv nach Videodateien und erstellt eine JSON-Datenbank.
+1.  **`tag.zsh`**: Extrahiert Informationen aus dem Dateinamen und schreibt sie als Metadaten in die Datei.
+2.  **`cover.zsh`**: Generiert basierend auf den (in Schritt 1 gesetzten) Metadaten ein Cover und bettet es ein.
+3.  **`inventory.zsh`**: Liest die fertigen Metadaten aus den Dateien und aktualisiert die JSON-Datenbank.
 
-  * **Konfiguration:** Anpassung der Variable `BASE_PFAD` im Skript `inventory.zsh` notwendig.
-  * **Ausführung:**
-    ```zsh
-    ./inventory.zsh
-    ```
-  * **Ergebnis:** Erstellung oder Aktualisierung von `filme_inventory.json`. Bereits vorhandene Einträge bleiben erhalten.
+## Verwendung der Zsh-Skripte
 
-### 2\. Metadaten anreichern
+Die Skripte `tag.zsh`, `cover.zsh` und `inventory.zsh` unterstützen zwei Arbeitsmodi zur Dateiauswahl.
 
-Das Skript `enrich_metadata.py` analysiert Einträge ohne Titel in der JSON-Datei und fragt fehlende Informationen (Titel DE/Orig, Regisseur) bei der Google Gemini API ab.
+### Modi der Dateiauswahl
 
-  * **API-Key setzen:**
-    ```zsh
-    export GEMINI_API_KEY="HIER_DEIN_KEY"
-    ```
-  * **Ausführung (Testlauf):**
-    Zeigt geplante Änderungen ohne API-Aufruf an.
-    ```zsh
-    python enrich_metadata.py --dry-run
-    ```
-  * **Ausführung (Live):**
-    ```zsh
-    python enrich_metadata.py
-    ```
-  * **Optionen:**
-      * `--limit-batches N`: Begrenzung auf N Stapel (Chunks) zu je 10 Filmen (z.B. zum Testen).
+**A. Konfigurations-Modus (Aktuelles Verzeichnis)**
+Das Skript wird ohne Dateipfade aufgerufen. Es verarbeitet alle Dateien im aktuellen Verzeichnis, die den Filtern im Skript entsprechen.
 
-  ## Andere Skripten
+  * **Konfiguration:** Variablen `EXTENSIONS`, `INCLUDE_STR` und `EXCLUDE_STR` im Skriptkopf anpassen.
+  * **Aufruf:** `./tag.zsh`
 
-  ### `cover.zsh`
+**B. Pipe-Modus (Gezielte Auswahl)**
+Dateipfade werden über die Standardeingabe (stdin) übergeben. Dies ignoriert die Filter-Variablen im Skript.
 
-  Das Skript erstellt und schreibt Cover. 
-  
-  Das Cover und die Ansichten in der TV App (macOS 26 und iPadOS 26):
+  * **Aufruf:** `print -l /Pfad/zu/Dateien* | ./skript.zsh`
+
+### Optionen
+
+Alle Zsh-Skripte unterstützen folgende Argumente:
+
+  * `--dry-run`: Simuliert den Vorgang und zeigt geplante Änderungen an (keine Schreibzugriffe).
+  * `--force`: Erzwingt das Überschreiben bereits vorhandener Werte/Cover.
+
+-----
+
+### 1\. Tags schreiben (`tag.zsh`)
+
+Analysiert Dateinamen anhand definierter Muster (z.B. "Artist - Show . Title") und schreibt iTunes-konforme Tags (Artist, Show, Staffel, Episode, Titel).
+
+**Unterstützte Muster für Dateinamen:**
+
+    Artist - Show . Title_S_E_Total
+
+    Artist - Title_S_E_Total
+
+    Title_S_E_Total
+
+    Artist - Show . Title
+
+    Show . Title
+
+    Artist - Title
+
+    Title
+
+**Beispiel (Mehrere Dateien per Pipe testen):**
+
+```zsh
+print -l /Volumes/HD16/Movies/*Tatort*.mp4 | ./tag.zsh --dry-run
+```
+
+### 2\. Cover erstellen (`cover.zsh`)
+
+Liest Titel und Artist aus den Metadaten der Datei, generiert mit ImageMagick ein Cover-Bild und bettet dieses ein.
+
+**Beispiel (Einzelne Datei erzwingen):**
+
+```zsh
+print -l "/Volumes/HD16/Home Videos/Urlaub.mp4" | ./cover.zsh --force
+```
+
+**Ergebnis:**
+Das generierte Cover sorgt für eine korrekte Darstellung in der TV App (macOS/iPadOS):
 
 <table align="center">
   <tr>
@@ -95,14 +129,26 @@ Das Skript `enrich_metadata.py` analysiert Einträge ohne Titel in der JSON-Date
   </tr>
 </table>
 
-  ### `tag.zsh`
+### 3\. Inventar aktualisieren (`inventory.zsh`)
 
-  Das Skript liest Tag Wert aus dem Filename und schreibt sie ins File. 
+Liest die Metadaten (`ffprobe`) aus den Dateien und aktualisiert oder ergänzt die globale JSON-Datenbank (`filme_inventory.json`).
+
+  * **Wichtig:** Setzt voraus, dass die Dateien bereits getaggt sind (z.B. durch `tag.zsh`).
+  * Unterstützt globale Datenbanken: Einträge aus anderen Verzeichnissen bleiben erhalten.
+
+-----
+
+### 4\. KI-Anreicherung (`enrich_metadata.py`)
+
+*Optional.* Analysiert Einträge in der JSON-Datei, die noch keine Titel-Informationen haben, und fragt diese bei der Google Gemini API ab.
+
+  * **Vorbereitung:** `export GEMINI_API_KEY="KEY"`
+  * **Aufruf:** `python enrich_metadata.py`
 
 ## Dateistruktur
 
-  * `data/`: Beispiele Inventar-Dateien (`filme_inventory.json` und `done_filme_inventory.json` ausgefüllt).
-  * `inventory.zsh`: Zsh-Skript zum Scannen der Festplatte.
-  * `metadata.py`: Python-Skript zur KI-gestützten Datenvervollständigung.
-  * `cover.zsh`: Weiteres Zsh-Skript zum Erstellen und Schreiben einheitlicher Cover ("macOS 26 und TV App konform").
-  * `tag.zsh`: Weiteres Zsh-Skript zum Erstellen und Schreiben der Tags aus dem Filenamen ("macOS 26 und TV App konform").
+  * `data/`: Speicherort der Inventar-Dateien.
+  * `tag.zsh`: Schreibt Metadaten aus Dateinamen.
+  * `cover.zsh`: Generiert und bettet Cover-Bilder ein.
+  * `inventory.zsh`: Aktualisiert die JSON-Datenbank basierend auf Datei-Metadaten.
+  * `enrich_metadata.py`: Ergänzt fehlende Infos via KI.
