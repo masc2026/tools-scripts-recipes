@@ -55,19 +55,34 @@ get_tag() {
     fi
 }
 
-# Dateien suchen (deine Logik)
-if [[ -n "$EXCLUDE_STR" && -n "$INCLUDE_STR" ]]; then
-    files=( *$~INCLUDE_STR*.(#i)$~EXTENSIONS~*$~EXCLUDE_STR* )
-    echo "Filter aktiv: Nur '*$INCLUDE_STR*', aber ohne '*$EXCLUDE_STR*'"
-elif [[ -n "$EXCLUDE_STR" ]]; then
-    files=( *.(#i)$~EXTENSIONS~*$~EXCLUDE_STR* )
-    echo "Filter aktiv: Ignoriere '*$EXCLUDE_STR*'"
-elif [[ -n "$INCLUDE_STR" ]]; then
-    files=( *$~INCLUDE_STR*.(#i)$~EXTENSIONS )
-    echo "Filter aktiv: Nur '*$INCLUDE_STR*'"
+# Dateien suchen
+files=()
+
+# FALL A: Input kommt aus einer Pipe (z.B. ls ... | script)
+if [[ ! -t 0 ]]; then
+    echo "Modus: Pipe Input (lese von stdin)..."
+    while IFS= read -r line; do
+        # Leere Zeilen ignorieren und Datei zum Array hinzufügen
+        [[ -n "$line" ]] && files+=("$line")
+    done
+
+# FALL B: Keine Pipe -> Suche im aktuellen Verzeichnis (Globbing)
 else
-    files=( *.(#i)$~EXTENSIONS )
-    echo "Kein Filter aktiv"
+    echo "Modus: Lokales Verzeichnis (Globbing)..."
+
+    if [[ -n "$EXCLUDE_STR" && -n "$INCLUDE_STR" ]]; then
+        files=( *$~INCLUDE_STR*.(#i)$~EXTENSIONS~*$~EXCLUDE_STR* )
+        echo "  Filter: Nur '*$INCLUDE_STR*', ohne '*$EXCLUDE_STR*'"
+    elif [[ -n "$EXCLUDE_STR" ]]; then
+        files=( *.(#i)$~EXTENSIONS~*$~EXCLUDE_STR* )
+        echo "  Filter: Ignoriere '*$EXCLUDE_STR*'"
+    elif [[ -n "$INCLUDE_STR" ]]; then
+        files=( *$~INCLUDE_STR*.(#i)$~EXTENSIONS )
+        echo "  Filter: Nur '*$INCLUDE_STR*'"
+    else
+        files=( *.(#i)$~EXTENSIONS )
+        echo "  Filter: Keine (Alle Extensions)"
+    fi
 fi
 
 if (( ${#files} == 0 )); then echo "Keine Dateien gefunden."; exit 0; fi
@@ -161,7 +176,7 @@ for file in "${files[@]}"; do
     # Season & Episode
     write_season="false"
     
-    # Hier prüfen wir auch auf Force
+    # Auf Force prüfen
     if [[ ( -z "$ex_season" || "$FORCE" == "true" ) && -n "$new_season" ]]; then
         ap_args+=( --TVSeasonNum "$new_season" )
         write_season="true"; update_info+="Season "
@@ -239,7 +254,7 @@ for file in "${files[@]}"; do
         echo "     [OK] Aktualisiert."
     else
         # Fehleranalyse: Ist es ein falsches Format oder zu wenig Platz?
-        # Wir suchen nach den typischen Fehlermeldungen
+        # NAch den typischen Fehlermeldungen suchen
         if echo "$output" | grep -q -E "bad mpeg4 file|insufficient space"; then
             echo "     [WARNUNG] AtomicParsley gescheitert (Kein MP4-Container oder zu wenig Platz)."
             echo "     -> Starte FFmpeg Reparatur (Remux nach .m4v)..."

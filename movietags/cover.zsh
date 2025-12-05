@@ -52,30 +52,33 @@ get_tag() {
     fi
 }
 
-# Dateien suchen
-# Fall 1: Exclude UND Include sind gesetzt
-# Logik: (Muss Include enthalten) UND (Darf Exclude NICHT enthalten)
-if [[ -n "$EXCLUDE_STR" && -n "$INCLUDE_STR" ]]; then
-    files=( *$~INCLUDE_STR*.(#i)$~EXTENSIONS~*$~EXCLUDE_STR* )
-    echo "Filter aktiv: Nur '*$INCLUDE_STR*', aber ohne '*$EXCLUDE_STR*'"
+files=()
 
-# Fall 2: Nur Exclude ist gesetzt
-# Logik: (Alles) UND (Darf Exclude NICHT enthalten)
-elif [[ -n "$EXCLUDE_STR" ]]; then
-    files=( *.(#i)$~EXTENSIONS~*$~EXCLUDE_STR* )
-    echo "Filter aktiv: Ignoriere '*$EXCLUDE_STR*'"
+# FALL A: Input kommt aus einer Pipe (z.B. ls ... | script)
+if [[ ! -t 0 ]]; then
+    echo "Modus: Pipe Input (lese von stdin)..."
+    while IFS= read -r line; do
+        # Leere Zeilen ignorieren und Datei zum Array hinzufügen
+        [[ -n "$line" ]] && files+=("$line")
+    done
 
-# Fall 3: Nur Include ist gesetzt
-# Logik: (Muss Include enthalten)
-elif [[ -n "$INCLUDE_STR" ]]; then
-    files=( *$~INCLUDE_STR*.(#i)$~EXTENSIONS )
-    echo "Filter aktiv: Nur '*$INCLUDE_STR*'"
-
-# Fall 4: Keines ist gesetzt
+# FALL B: Keine Pipe -> Suche im aktuellen Verzeichnis (Globbing)
 else
-    files=( *.(#i)$~EXTENSIONS )
-    echo "Kein Filter aktiv'"
+    echo "Modus: Lokales Verzeichnis (Globbing)..."
 
+    if [[ -n "$EXCLUDE_STR" && -n "$INCLUDE_STR" ]]; then
+        files=( *$~INCLUDE_STR*.(#i)$~EXTENSIONS~*$~EXCLUDE_STR* )
+        echo "  Filter: Nur '*$INCLUDE_STR*', ohne '*$EXCLUDE_STR*'"
+    elif [[ -n "$EXCLUDE_STR" ]]; then
+        files=( *.(#i)$~EXTENSIONS~*$~EXCLUDE_STR* )
+        echo "  Filter: Ignoriere '*$EXCLUDE_STR*'"
+    elif [[ -n "$INCLUDE_STR" ]]; then
+        files=( *$~INCLUDE_STR*.(#i)$~EXTENSIONS )
+        echo "  Filter: Nur '*$INCLUDE_STR*'"
+    else
+        files=( *.(#i)$~EXTENSIONS )
+        echo "  Filter: Keine (Alle Extensions)"
+    fi
 fi
 
 if (( ${#files} == 0 )); then echo "Keine Dateien gefunden."; exit 0; fi
@@ -184,7 +187,7 @@ for file in "${files[@]}"; do
     # 4. Bild schreiben mit AtomicParsley oder ffmpeg als fall BACK
 
     # Versuch 1: AtomicParsley
-    # Wir fangen Fehler ab (2> /dev/null wegnehmen, um Fehler zu sehen, oder in Variable speichern)
+    # Fehler abfangen (2> /dev/null wegnehmen, um Fehler zu sehen, oder in Variable speichern)
     if AtomicParsley "$file" --artwork REMOVE_ALL --artwork "$cover_file" --overWrite >/dev/null 2>&1; then
         echo "     [OK] Cover eingebettet (AtomicParsley)."
     else
@@ -192,7 +195,7 @@ for file in "${files[@]}"; do
         echo "     [WARNUNG] AtomicParsley fehlgeschlagen (zu wenig Header-Platz oder .mov Container)."
         echo "     -> Starte FFmpeg Fallback (Reparatur & Umwandlung in .m4v)..."
         
-        # WICHTIG: Wir ändern die Endung auf .m4v!
+        # WICHTIG: ändern der Endung auf .m4v!
         # Das löst alle Container-Probleme mit Apple TV und AtomicParsley.
         temp_ffmpeg="${file:r}_fixed.m4v"
         
@@ -211,7 +214,7 @@ for file in "${files[@]}"; do
             # Wenn erfolgreich: Alte Datei löschen und neue behalten
             mv "$temp_ffmpeg" "${file:r}.m4v"
             
-            # Falls die Originaldatei NICHT .m4v hieß (z.B. .mov), löschen wir das Original
+            # Falls die Originaldatei NICHT .m4v hieß (z.B. .mov), das Original löschen
             if [[ "${file}" != "${file:r}.m4v" ]]; then
                 rm "$file"
                 echo "     [INFO] Datei wurde von .${file:e} zu .m4v konvertiert."
