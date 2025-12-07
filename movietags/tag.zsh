@@ -5,13 +5,11 @@
 INVENTAR_DATEI="~/Projekte/github/tools-scripts-recipes/movietags/filme_inventory.json"
 INVENTAR_DATEI=${~INVENTAR_DATEI}
 EXTENSIONS="(mp4|m4v|mov|mpeg)"
-# Filter Beispiele:
-# EXCLUDE_STR="(Lynch)" 
-# INCLUDE_STR="(Polat)" 
 
 # Standardwerte
 DRY_RUN="false"
 FORCE="false"
+USE_DB_ONLY="false"
 
 # Argumente prüfen
 if [[ "${@}" =~ "--dry-run" ]]; then
@@ -24,11 +22,16 @@ if [[ "${@}" =~ "--force" ]]; then
     echo "--- FORCE MODUS AKTIV ---"
 fi
 
+if [[ "${@}" =~ "--db-only" ]]; then
+    USE_DB_ONLY="true"
+    echo "--- DB-ONLY MODUS: Lese Metadaten aus JSON (ignoriere Dateinamen) ---"
+fi
+
 setopt extendedglob
 setopt nullglob
 
 # Dependencies Check
-DEPENDENCIES=(ffprobe AtomicParsley ffmpeg jq) # jq hinzugefügt!
+DEPENDENCIES=(ffprobe AtomicParsley ffmpeg jq) 
 
 for cmd in "${DEPENDENCIES[@]}"; do
     if ! command -v "$cmd" &> /dev/null; then
@@ -37,34 +40,54 @@ for cmd in "${DEPENDENCIES[@]}"; do
     fi
 done
 
-# --- SCHRITT 0: Inventar laden (für Zusatzinfos wie Jahr) ---
+# --- SCHRITT 0: Inventar laden ---
 typeset -A db_entries
 db_loaded="false"
 
 if [[ -f "$INVENTAR_DATEI" ]]; then
-    echo "Lade Zusatzinfos aus Inventar: $INVENTAR_DATEI"
+    echo "Lade Inventar: $INVENTAR_DATEI"
     # Wir laden basename -> ganzes JSON Objekt in ein Array
     while IFS=$'\t' read -r key json_line; do
         db_entries[$key]=$json_line
     done < <(jq -r '.[] | "\(.filebasename)\t\(.|tostring)"' "$INVENTAR_DATEI")
     db_loaded="true"
 else
-    echo "Warnung: Inventar-Datei nicht gefunden. Zusatzinfos werden ignoriert."
+    echo "Warnung: Inventar-Datei nicht gefunden."
+    if [[ "$USE_DB_ONLY" == "true" ]]; then
+        echo "Fehler: --db-only erfordert eine Inventar-Datei."
+        exit 1
+    fi
 fi
 
 # Hilfsfunktion: Wert aus geladener DB holen
 get_tag_inventory() {
     local file_basename="$1"
-    local field="$2" # z.B. ".jahr" oder ".titel.orig"
+    local field="$2" 
     
     if [[ "$db_loaded" == "false" ]]; then return; fi
-    
-    # Eintrag aus dem Array holen
     local entry="${db_entries[$file_basename]}"
     
     if [[ -n "$entry" ]]; then
         # Wert mit jq aus dem String parsen
         echo "$entry" | jq -r "$field // empty"
+    fi
+}
+
+# Hilfsfunktion: Description aus DB bauen (Regie + Darsteller)
+build_description() {
+    local file_basename="$1"
+    
+    if [[ "$db_loaded" == "false" ]]; then return; fi
+    local entry="${db_entries[$file_basename]}"
+    
+    if [[ -n "$entry" ]]; then
+        # Text mit jq String Interpolation bauen
+        echo "$entry" | jq -r '
+            ("Regie:\n" + (.regisseur.name // "-") + "\n\n"),
+            "Darsteller:",
+            (.darsteller[] | "\(.actor) als \(.rolle)")
+        ' | paste -sd '\n' - # paste verbindet die Zeilen wieder sauber
+        # Hinweis: jq gibt bei Array-Iteration jede Zeile einzeln aus, paste fügt sie zusammen
     fi
 }
 
@@ -119,48 +142,78 @@ for file in "${files[@]}"; do
 
     # Variablen resetten
     new_artist="" new_show="" new_title="" new_season="" new_episode="" new_total=""
-    new_year=""
+    new_year="" new_desc=""
     match_found="false"
 
-    # --- MUSTER ERKENNUNG ---
+    # --- DATENQUELLE WÄHLEN ---
 
-    # 1. Artist - Show . Title_S_E_Total
-    if [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+) \. ([^_.-]+)_([0-9]+)_([0-9]+)_([0-9]+)$" ]]; then
-        new_artist="${match[1]}"; new_show="${match[2]}"; new_title="${match[3]}"
-        new_season="${match[4]}"; new_episode="${match[5]}"; new_total="${match[6]}"
-        match_found="true"; pattern_name="Artist - Show . Title_S_E_Total"
+    if [[ "$USE_DB_ONLY" == "true" ]]; then
+        # 1. MODUS: NUR DB LESEN
+        pattern_name="Database Lookup"
+        
+        # Prüfen ob Eintrag existiert
+        if [[ -z "${db_entries[$filename]}" ]]; then
+            [[ "$DRY_RUN" == "true" ]] && echo "[SKIP] '$filename' nicht in DB gefunden."
+            continue
+        fi
+        
+        match_found="true"
+        new_title=$(get_tag_inventory "$filename" ".titel.de")
+        new_artist=$(get_tag_inventory "$filename" ".artist")
+        new_show=$(get_tag_inventory "$filename" ".show")
+        new_year=$(get_tag_inventory "$filename" ".jahr")
+        # Description generieren
+        new_desc=$(build_description "$filename")
+        
+        # Episoden Infos (falls vorhanden)
+        new_episode=$(get_tag_inventory "$filename" ".episode")
+        # new_season/total müssten im JSON stehen, falls wir sie wollen. 
+        # Hier nehmen wir an, dass sie ggf. leer bleiben wenn nicht in DB.
 
-    # 2. Artist - Title_S_E_Total
-    elif [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+)_([0-9]+)_([0-9]+)_([0-9]+)$" ]]; then
-        new_artist="${match[1]}"; new_title="${match[2]}"; new_show="${new_title}"
-        new_season="${match[3]}"; new_episode="${match[4]}"; new_total="${match[5]}"
-        match_found="true"; pattern_name="Artist - Title_S_E_Total"
+    else
+        # 2. MODUS: DATEINAMEN ANALYSE (Regex)
+        
+        # 1. Artist - Show . Title_S_E_Total
+        if [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+) \. ([^_.-]+)_([0-9]+)_([0-9]+)_([0-9]+)$" ]]; then
+            new_artist="${match[1]}"; new_show="${match[2]}"; new_title="${match[3]}"
+            new_season="${match[4]}"; new_episode="${match[5]}"; new_total="${match[6]}"
+            match_found="true"; pattern_name="Artist - Show . Title_S_E_Total"
 
-    # 3. Title_S_E_Total
-    elif [[ "$basename" =~ "^([^_.-]+)_([0-9]+)_([0-9]+)_([0-9]+)$" ]]; then
-        new_title="${match[1]}"; new_show="${new_title}"
-        new_season="${match[2]}"; new_episode="${match[3]}"; new_total="${match[4]}"
-        match_found="true"; pattern_name="Title_S_E_Total"
-    
-    # 7. Artist - Show . Title
-    elif [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+) \. ([^_.-]+)$" ]]; then
-        new_artist="${match[1]}"; new_show="${match[2]}"; new_title="${match[3]}"
-        match_found="true"; pattern_name="Artist - Show . Title"
+        # 2. Artist - Title_S_E_Total
+        elif [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+)_([0-9]+)_([0-9]+)_([0-9]+)$" ]]; then
+            new_artist="${match[1]}"; new_title="${match[2]}"; new_show="${new_title}"
+            new_season="${match[3]}"; new_episode="${match[4]}"; new_total="${match[5]}"
+            match_found="true"; pattern_name="Artist - Title_S_E_Total"
 
-    # 4. Show . Title
-    elif [[ "$basename" =~ "^([^_.-]+) \. ([^_.-]+)$" ]]; then
-        new_show="${match[1]}"; new_title="${match[2]}"
-        match_found="true"; pattern_name="Show . Title"
+        # 3. Title_S_E_Total
+        elif [[ "$basename" =~ "^([^_.-]+)_([0-9]+)_([0-9]+)_([0-9]+)$" ]]; then
+            new_title="${match[1]}"; new_show="${new_title}"
+            new_season="${match[2]}"; new_episode="${match[3]}"; new_total="${match[4]}"
+            match_found="true"; pattern_name="Title_S_E_Total"
+        
+        # 7. Artist - Show . Title
+        elif [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+) \. ([^_.-]+)$" ]]; then
+            new_artist="${match[1]}"; new_show="${match[2]}"; new_title="${match[3]}"
+            match_found="true"; pattern_name="Artist - Show . Title"
 
-    # 5. Artist - Title
-    elif [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+)$" ]]; then
-        new_artist="${match[1]}"; new_title="${match[2]}"
-        match_found="true"; pattern_name="Artist - Title"
+        # 4. Show . Title
+        elif [[ "$basename" =~ "^([^_.-]+) \. ([^_.-]+)$" ]]; then
+            new_show="${match[1]}"; new_title="${match[2]}"
+            match_found="true"; pattern_name="Show . Title"
 
-    # 6. Title
-    elif [[ "$basename" =~ "^([^_.-]+)$" ]]; then
-        new_title="${match[1]}"
-        match_found="true"; pattern_name="Title Only"
+        # 5. Artist - Title
+        elif [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+)$" ]]; then
+            new_artist="${match[1]}"; new_title="${match[2]}"
+            match_found="true"; pattern_name="Artist - Title"
+
+        # 6. Title
+        elif [[ "$basename" =~ "^([^_.-]+)$" ]]; then
+            new_title="${match[1]}"
+            match_found="true"; pattern_name="Title Only"
+        fi
+        
+        # Im normalen Modus holen wir das Jahr TROTZDEM aus der DB (als Zusatz)
+        new_year=$(get_tag_inventory "$filename" ".jahr")
     fi
 
     if [[ "$match_found" == "false" ]]; then
@@ -168,19 +221,14 @@ for file in "${files[@]}"; do
         continue
     fi
     
-    # --- ZUSATZINFOS AUS DB HOLEN ---
-    # Jahr (.jahr) aus der Datenbank holen
-    new_year=$(get_tag_inventory "$filename" ".jahr")
-   
-    # Bestehende Tags lesen
+    # --- BESTEHENDE DATEN PRÜFEN ---
     ex_artist=$(get_tag "$file" "artist")
     ex_show=$(get_tag "$file" "show")
     ex_title=$(get_tag "$file" "title")
     ex_season=$(get_tag "$file" "season_number")
     ex_episode=$(get_tag "$file" "episode_sort")
-    ex_year=$(get_tag "$file" "date") # Atom: ©day
-    # Auf YYYY Format bringen (anstatt YYYY-MM-DD)
-    ex_year="${ex_year:0:4}"
+    ex_year=$(get_tag "$file" "date"); ex_year="${ex_year:0:4}"
+    ex_desc=$(get_tag "$file" "description") # Wir lesen auch die alte Description
    
     ap_args=()
     update_info=""
@@ -205,10 +253,17 @@ for file in "${files[@]}"; do
         update_info+="Title "
     fi
     
-    # Jahr (aus DB)
+    # Jahr
     if [[ ( -z "$ex_year" || "$FORCE" == "true" ) && -n "$new_year" ]]; then
         ap_args+=( --year "$new_year" )
-        update_info+="Jahr($new_year) "
+        update_info+="Jahr "
+    fi
+    
+    # Description (Nur im DB-Modus oder wenn explizit gewünscht)
+    # Hier prüfen wir: Ist neue Desc da? Und (Alt leer oder Force)
+    if [[ ( -z "$ex_desc" || "$FORCE" == "true" ) && -n "$new_desc" ]]; then
+        ap_args+=( --description "$new_desc" )
+        update_info+="Desc "
     fi
 
     # Season & Episode
@@ -227,10 +282,12 @@ for file in "${files[@]}"; do
     # Zusatzinfos für Serien
     if [[ "$write_season" == "true" ]]; then
         ap_args+=( --stik value=10 )
-        
         if [[ -n "$new_total" ]]; then
             ap_args+=( --tracknum "$new_episode/$new_total" )
-            ap_args+=( --description "Staffel $new_season, Episode $new_episode von $new_total" )
+            # Falls wir KEINE DB-Description haben, bauen wir eine einfache:
+            if [[ -z "$new_desc" ]]; then
+                 ap_args+=( --description "Staffel $new_season, Episode $new_episode von $new_total" )
+            fi
         else
             ap_args+=( --tracknum "$new_episode" )
         fi
@@ -239,14 +296,12 @@ for file in "${files[@]}"; do
     # --- ENTSCHEIDUNG ---
 
     if (( ${#ap_args} == 0 )); then
-        # Skip wenn nichts zu tun (und Force nichts erzwungen hat was neu wäre)
         continue
     fi
 
     echo "Datei: $file"
     echo "  -> Muster: $pattern_name"
 
-    # Tabellenausgabe
     force_txt=""
     [[ "$FORCE" == "true" ]] && force_txt="(FORCE)"
     
@@ -259,6 +314,7 @@ for file in "${files[@]}"; do
     printf "  %-10s | %-30s | %s\n" "Show"    "${ex_show:--}"    "${new_show}"
     printf "  %-10s | %-30s | %s\n" "Titel"   "${ex_title:--}"   "${new_title}"
     printf "  %-10s | %-30s | %s\n" "Jahr"    "${ex_year:--}"    "${new_year}"
+    printf "  %-10s | %-30s | %s\n" "Desc"    "${${ex_desc//$'\n'/ }:0:20}..."  "${${new_desc//$'\n'/ }:0:20}..."
     printf "  %-10s | %-30s | %s\n" "Staffel" "${ex_season:--}"  "${new_season}"
     printf "  %-10s | %-30s | %s\n" "Episode" "${ex_episode:--}" "${new_episode}"
     echo ""

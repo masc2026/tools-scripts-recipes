@@ -46,7 +46,7 @@ Für die **initiale Erfassung** oder eine vollständige Neubearbeitung aller Dat
 1.  **`tag.zsh`**: Extrahiert Basis-Informationen (Titel, Show, Staffel) aus dem Dateinamen und schreibt sie als Metadaten in die Datei.
 2.  **`inventory.zsh`**: Liest die Metadaten aus den Dateien und legt neue Einträge in der JSON-Datenbank an.
 3.  **`metadata.py`**: Analysiert die Datenbank und ergänzt fehlende Informationen (Jahr, Originaltitel, Darsteller) via KI.
-4.  **`tag.zsh --force`**: Schreibt die nun vollständigen Daten (inkl. der neuen Infos aus der Datenbank) zurück in die Datei.
+4.  **`tag.zsh --force --db-only`**: Schreibt die nun vollständigten Daten mit Infos aus der Datenbank zurück in die Datei.
 5.  **`cover.zsh`**: Generiert basierend auf den finalen Metadaten ein Cover und bettet es ein.
 
 ### Vorgehen bei neuen Dateien (Inkrementell)
@@ -67,8 +67,8 @@ print -l /Pfad/zu/Tatort*.(Hinz|Kunz)*.mp4 | ./inventory.zsh --dry-run
 # 3. KI-Daten ergänzen (nur für die übergebenen Dateien)
 print -l /Pfad/zu/Tatort*.(Hinz|Kunz)*.mp4 | python metadata.py --dry-run
 
-# 4. Angereicherte Daten (z.B. Jahr) in Datei schreiben
-print -l /Pfad/zu/Tatort*.(Hinz|Kunz)*.mp4 | ./tag.zsh --dry-run --force
+# 4. Angereicherte Daten (z.B. Jahr, Comment) in Datei schreiben
+print -l /Pfad/zu/Tatort*.(Hinz|Kunz)*.mp4 | ./tag.zsh --dry-run --db-only --force
 
 # 5. Cover erstellen
 print -l /Pfad/zu/Tatort*.(Hinz|Kunz)*.mp4 | ./cover.zsh --dry-run --force
@@ -102,11 +102,15 @@ Alle Zsh-Skripte unterstützen folgende Argumente:
   * `--dry-run`: Simuliert den Vorgang und zeigt geplante Änderungen an (keine Schreibzugriffe).
   * `--force`: Erzwingt das Überschreiben bereits vorhandener Werte/Cover.
 
+Das `tag.zsh` Skript unterstützt zudem das Flag `--db-only`
+
+  * `--db-only` : Wenn es nicht gesetzt ist, werden die Basis-Informationen aus dem Dateinamen extrahiert. Wenn es gesetzt ist, werden Informationen aus der Datenbank gelesen.
+
 -----
 
 ### 1\. Tags schreiben (`tag.zsh`)
 
-Analysiert Dateinamen anhand definierter Muster (z.B. "Artist - Show . Title") und schreibt iTunes-konforme Tags (Artist, Show, Staffel, Episode, Titel).
+Wenn `--db-only` _nicht_ gesetzt: analysiert Dateinamen anhand definierter Muster (z.B. "Artist - Show . Title") und schreibt iTunes-konforme Tags (Artist, Show, Staffel, Episode, Titel).
 
 **Unterstützte Muster für Dateinamen:**
 
@@ -119,6 +123,8 @@ Show . Title
 Artist - Title
 Title
 ```
+
+Wenn `--db-only` gesetzt: liest Daten aus der Datenbank und schreibt iTunes-konforme Tags (Artist, Show, Staffel, Episode, Titel, Comment).
 
 **Beispiel (Mehrere Dateien per Pipe testen):**
 
