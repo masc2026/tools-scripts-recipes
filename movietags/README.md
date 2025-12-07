@@ -53,7 +53,7 @@ Für die **initiale Erfassung** oder eine vollständige Neubearbeitung aller Dat
 
 Wenn nur einzelne Dateien hinzugekommen sind, wird die Verwendung von Filtern (Pipe-Methode) empfohlen, um zeitintensive Lese-/Schreibvorgänge auf der Festplatte zu minimieren.
 
-**Beispiel:** Neue Dateien "Tatort . Hinz..." und "Tatort . Kunz..." verarbeiten.
+**Beispiel (Neue Dateien "Tatort . Hinz..." und "Tatort . Kunz..." verarbeiten.):**
 
 **1. Testlauf (Dry Run):**
 
@@ -77,6 +77,41 @@ print -l /Pfad/zu/Tatort*.(Hinz|Kunz)*.mp4 | ./cover.zsh --dry-run --force
 **2. Ausführung (Live):**
 
 Wenn die Ausgaben korrekt erscheinen, `--dry-run` entfernen und die Befehle nacheinander ausführen.
+
+### Workflow mit `process_movies()` zusammenfassen
+
+```bash
+process_movies() {
+    local args="$@"
+    local files=("${(@f)$(<&0)}")
+    if (( ${#files} == 0 )); then 
+        echo "Fehler: Keine Dateien übergeben."
+        echo "Nutzung: print -l ... | process_movies [--dry-run]"
+        return 1
+    fi
+    echo "Verarbeite ${#files} Dateien..."
+    echo "\n=== SCHRITT 1: BASIS TAGS ==="
+    print -l $files | ./tag.zsh $args || return 1
+    echo "\n=== SCHRITT 2: INVENTAR ==="
+    print -l $files | ./inventory.zsh $args || return 1
+    echo "\n=== SCHRITT 3: KI METADATA ==="
+    print -l $files | python metadata.py $args || return 1
+    echo "\n=== SCHRITT 4: TAG UPDATE (DB) ==="
+    print -l $files | ./tag.zsh $args --db-only --force || return 1
+    echo "\n=== SCHRITT 5: COVER ==="
+    print -l $files | ./cover.zsh $args --force || return 1
+    echo "\n=== FERTIG ==="
+}
+```
+
+**Beispiel (alle 'Tatort\*' Dateien, die in den letzten drei Tagen hinzu kamen):**
+
+```bash
+# Testlauf
+print -l /Pfad/zu/Tatort*(.c-3) | process_movies --dry-run
+# Ausführen
+print -l /Pfad/zu/Tatort*(.c-3) | process_movies
+```
 
 ## Verwendung der Zsh-Skripte
 
