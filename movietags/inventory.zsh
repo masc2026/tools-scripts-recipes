@@ -3,8 +3,9 @@
 zmodload zsh/zutil
 
 # --- Konfiguration ---
-# Pfad zur globalen Datenbank (ggf. absoluten Pfad anpassen!)
-AUSGABE_DATEI="/Users/user/Projekte/github/tools-scripts-recipes/movietags/filme_inventory.json"
+# Pfad zur globalen Datenbank (ggf. Pfad anpassen!)
+INVENTAR_DATEI="~/Projekte/github/tools-scripts-recipes/movietags/filme_inventory.json"
+INVENTAR_DATEI=${~INVENTAR_DATEI}
 
 EXTENSIONS="(mp4|m4v|mov|mkv|avi)"
 
@@ -52,18 +53,18 @@ get_tag() {
 typeset -A db_entries
 integer next_nr=1
 
-if [[ -f "$AUSGABE_DATEI" ]]; then
-    echo "Lade globale Datenbank: $AUSGABE_DATEI"
+if [[ -f "$INVENTAR_DATEI" ]]; then
+    echo "Lade globale Datenbank: $INVENTAR_DATEI"
     
     # 1. Höchste NR ermitteln
-    local max_found=$(jq '[.[] .nr] | max // 0' "$AUSGABE_DATEI")
+    local max_found=$(jq '[.[] .nr] | max // 0' "$INVENTAR_DATEI")
     next_nr=$((max_found + 1))
     
     # 2. In Array laden (Key = filebasename, Value = ganzer JSON String)
     # Zeilenweise lesen: BASENAME [TAB] JSON
     while IFS=$'\t' read -r key json_line; do
         db_entries[$key]=$json_line
-    done < <(jq -r '.[] | "\(.filebasename)\t\(.|tostring)"' "$AUSGABE_DATEI")
+    done < <(jq -r '.[] | "\(.filebasename)\t\(.|tostring)"' "$INVENTAR_DATEI")
     
     echo "  -> ${#db_entries} Einträge geladen. Nächste ID: $next_nr"
 else
@@ -208,15 +209,15 @@ if [[ "$updates_made" == "false" ]]; then
 fi
 
 # Das gesamte Array (Map) zurück in die Datei schreiben
-TEMP_JSON="${AUSGABE_DATEI}.tmp"
+TEMP_JSON="${INVENTAR_DATEI}.tmp"
 
 # Trick: Alle Values des Arrays ausgeben und Pipe in jq -s
 # "${db_entries[@]}" expandiert zu allen JSON-Strings
 printf "%s\n" "${db_entries[@]}" | jq -s 'sort_by(.nr)' > "$TEMP_JSON"
 
 if [[ -s "$TEMP_JSON" ]]; then
-    mv "$TEMP_JSON" "$AUSGABE_DATEI"
-    echo "Globale Datenbank gespeichert ($AUSGABE_DATEI)."
+    mv "$TEMP_JSON" "$INVENTAR_DATEI"
+    echo "Globale Datenbank gespeichert ($INVENTAR_DATEI)."
     echo "Gesamteinträge: ${#db_entries}"
 else
     echo "FEHLER: Temp-Datei leer. Abbruch."

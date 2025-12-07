@@ -1,11 +1,13 @@
 #!/bin/zsh
 
 # --- Konfiguration ---
+# Pfad zur globalen Datenbank (ggf. Pfad anpassen!)
+INVENTAR_DATEI="~/Projekte/github/tools-scripts-recipes/movietags/filme_inventory.json"
+INVENTAR_DATEI=${~INVENTAR_DATEI}
 EXTENSIONS="(mp4|m4v|mov|mpeg)"
 # Filter Beispiele:
 # EXCLUDE_STR="(Lynch)" 
 # INCLUDE_STR="(Polat)" 
-# INCLUDE_STR="(Tatort*Reini|Reini*Tatort)"
 
 # Standardwerte
 DRY_RUN="false"
@@ -26,16 +28,45 @@ setopt extendedglob
 setopt nullglob
 
 # Dependencies Check
-# Liste der benötigten Programme
-DEPENDENCIES=(ffprobe AtomicParsley ffmpeg)
+DEPENDENCIES=(ffprobe AtomicParsley ffmpeg jq) # jq hinzugefügt!
 
 for cmd in "${DEPENDENCIES[@]}"; do
     if ! command -v "$cmd" &> /dev/null; then
         echo "FEHLER: Der Befehl '$cmd' wurde nicht gefunden."
-        echo "Bitte installieren (z.B. mit 'brew install $cmd')."
         exit 1
     fi
 done
+
+# --- SCHRITT 0: Inventar laden (für Zusatzinfos wie Jahr) ---
+typeset -A db_entries
+db_loaded="false"
+
+if [[ -f "$INVENTAR_DATEI" ]]; then
+    echo "Lade Zusatzinfos aus Inventar: $INVENTAR_DATEI"
+    # Wir laden basename -> ganzes JSON Objekt in ein Array
+    while IFS=$'\t' read -r key json_line; do
+        db_entries[$key]=$json_line
+    done < <(jq -r '.[] | "\(.filebasename)\t\(.|tostring)"' "$INVENTAR_DATEI")
+    db_loaded="true"
+else
+    echo "Warnung: Inventar-Datei nicht gefunden. Zusatzinfos werden ignoriert."
+fi
+
+# Hilfsfunktion: Wert aus geladener DB holen
+get_tag_inventory() {
+    local file_basename="$1"
+    local field="$2" # z.B. ".jahr" oder ".titel.orig"
+    
+    if [[ "$db_loaded" == "false" ]]; then return; fi
+    
+    # Eintrag aus dem Array holen
+    local entry="${db_entries[$file_basename]}"
+    
+    if [[ -n "$entry" ]]; then
+        # Wert mit jq aus dem String parsen
+        echo "$entry" | jq -r "$field // empty"
+    fi
+}
 
 # Hilfsfunktion für ffprobe
 get_tag() {
@@ -43,13 +74,10 @@ get_tag() {
     local tag="$2"
 
     if [[ "$tag" == "cover" ]]; then
-        # Spezialfall: Prüft auf Videostreams, die als Cover markiert sind (attached_pic)
-        # Gibt "1" zurück, wenn ein Cover gefunden wurde, sonst nichts.
         ffprobe -v error -select_streams v \
-            -show_entries stream=disposition:attached_pic \
+            -show_entries stream_disposition=attached_pic \
             -of default=noprint_wrappers=1:nokey=1 "$file" | grep -m 1 "1"
     else
-        # Standardfall: Liest normale Text-Tags (Artist, Title, etc.)
         ffprobe -v error -show_entries format_tags="$tag" \
             -of default=noprint_wrappers=1:nokey=1 "$file"
     fi
@@ -58,30 +86,24 @@ get_tag() {
 # Dateien suchen
 files=()
 
-# FALL A: Input kommt aus einer Pipe (z.B. ls ... | script)
+# FALL A: Input kommt aus einer Pipe
 if [[ ! -t 0 ]]; then
-    echo "Modus: Pipe Input (lese von stdin)..."
+    echo "Modus: Pipe Input..."
     while IFS= read -r line; do
-        # Leere Zeilen ignorieren und Datei zum Array hinzufügen
         [[ -n "$line" ]] && files+=("$line")
     done
 
-# FALL B: Keine Pipe -> Suche im aktuellen Verzeichnis (Globbing)
+# FALL B: Lokales Verzeichnis
 else
-    echo "Modus: Lokales Verzeichnis (Globbing)..."
-
+    echo "Modus: Lokales Verzeichnis..."
     if [[ -n "$EXCLUDE_STR" && -n "$INCLUDE_STR" ]]; then
         files=( *$~INCLUDE_STR*.(#i)$~EXTENSIONS~*$~EXCLUDE_STR* )
-        echo "  Filter: Nur '*$INCLUDE_STR*', ohne '*$EXCLUDE_STR*'"
     elif [[ -n "$EXCLUDE_STR" ]]; then
         files=( *.(#i)$~EXTENSIONS~*$~EXCLUDE_STR* )
-        echo "  Filter: Ignoriere '*$EXCLUDE_STR*'"
     elif [[ -n "$INCLUDE_STR" ]]; then
         files=( *$~INCLUDE_STR*.(#i)$~EXTENSIONS )
-        echo "  Filter: Nur '*$INCLUDE_STR*'"
     else
         files=( *.(#i)$~EXTENSIONS )
-        echo "  Filter: Keine (Alle Extensions)"
     fi
 fi
 
@@ -91,14 +113,16 @@ echo "Prüfe ${#files} Dateien..."
 echo "---------------------------------------------------"
 
 for file in "${files[@]}"; do
-    basename="${file:t:r}"
+    basename="${file:t:r}" # Ohne Pfad, ohne Endung
+    filename="${file:t}"   # Ohne Pfad, mit Endung (Key für DB!)
     extension="${file:e}"
 
     # Variablen resetten
     new_artist="" new_show="" new_title="" new_season="" new_episode="" new_total=""
+    new_year=""
     match_found="false"
 
-    # --- MUSTER ERKENNUNG im File Namen (Strict: [^_.-]+) ---
+    # --- MUSTER ERKENNUNG ---
 
     # 1. Artist - Show . Title_S_E_Total
     if [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+) \. ([^_.-]+)_([0-9]+)_([0-9]+)_([0-9]+)$" ]]; then
@@ -106,19 +130,19 @@ for file in "${files[@]}"; do
         new_season="${match[4]}"; new_episode="${match[5]}"; new_total="${match[6]}"
         match_found="true"; pattern_name="Artist - Show . Title_S_E_Total"
 
-    # 2. Artist - Title_S_E_Total (Show=Title Fallback)
+    # 2. Artist - Title_S_E_Total
     elif [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+)_([0-9]+)_([0-9]+)_([0-9]+)$" ]]; then
         new_artist="${match[1]}"; new_title="${match[2]}"; new_show="${new_title}"
         new_season="${match[3]}"; new_episode="${match[4]}"; new_total="${match[5]}"
         match_found="true"; pattern_name="Artist - Title_S_E_Total"
 
-    # 3. Title_S_E_Total (Show=Title Fallback)
+    # 3. Title_S_E_Total
     elif [[ "$basename" =~ "^([^_.-]+)_([0-9]+)_([0-9]+)_([0-9]+)$" ]]; then
         new_title="${match[1]}"; new_show="${new_title}"
         new_season="${match[2]}"; new_episode="${match[3]}"; new_total="${match[4]}"
         match_found="true"; pattern_name="Title_S_E_Total"
     
-    # 7. Artist - Show . Title (NEU eingefügt, da spezifischer als 5)
+    # 7. Artist - Show . Title
     elif [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+) \. ([^_.-]+)$" ]]; then
         new_artist="${match[1]}"; new_show="${match[2]}"; new_title="${match[3]}"
         match_found="true"; pattern_name="Artist - Show . Title"
@@ -133,7 +157,7 @@ for file in "${files[@]}"; do
         new_artist="${match[1]}"; new_title="${match[2]}"
         match_found="true"; pattern_name="Artist - Title"
 
-    # 6. Title (Gefährlich allgemein, daher ganz unten)
+    # 6. Title
     elif [[ "$basename" =~ "^([^_.-]+)$" ]]; then
         new_title="${match[1]}"
         match_found="true"; pattern_name="Title Only"
@@ -143,25 +167,33 @@ for file in "${files[@]}"; do
         [[ "$DRY_RUN" == "true" ]] && echo "[SKIP] Kein Muster passt: $file"
         continue
     fi
+    
+    # --- ZUSATZINFOS AUS DB HOLEN ---
+    # Jahr (.jahr) aus der Datenbank holen
+    new_year=$(get_tag_inventory "$filename" ".jahr")
    
-    has_cover=$(AtomicParsley "$file" -T 1 2>/dev/null | grep "covr")
+    # Bestehende Tags lesen
     ex_artist=$(get_tag "$file" "artist")
     ex_show=$(get_tag "$file" "show")
     ex_title=$(get_tag "$file" "title")
     ex_season=$(get_tag "$file" "season_number")
     ex_episode=$(get_tag "$file" "episode_sort")
+    ex_year=$(get_tag "$file" "date") # Atom: ©day
+    # Auf YYYY Format bringen (anstatt YYYY-MM-DD)
+    ex_year="${ex_year:0:4}"
    
     ap_args=()
     update_info=""
 
+    # --- ARGUMENTE BAUEN ---
+
     # Artist
-    # Logik: Wenn (Feld leer ODER Force an) UND (Neuer Wert da)
     if [[ ( -z "$ex_artist" || "$FORCE" == "true" ) && -n "$new_artist" ]]; then
         ap_args+=( --artist "$new_artist" )
         update_info+="Artist "
     fi
 
-    # Show (TVShowName)
+    # Show
     if [[ ( -z "$ex_show" || "$FORCE" == "true" ) && -n "$new_show" ]]; then
         ap_args+=( --TVShowName "$new_show" )
         update_info+="Show "
@@ -172,11 +204,16 @@ for file in "${files[@]}"; do
         ap_args+=( --title "$new_title" )
         update_info+="Title "
     fi
+    
+    # Jahr (aus DB)
+    if [[ ( -z "$ex_year" || "$FORCE" == "true" ) && -n "$new_year" ]]; then
+        ap_args+=( --year "$new_year" )
+        update_info+="Jahr($new_year) "
+    fi
 
     # Season & Episode
     write_season="false"
     
-    # Auf Force prüfen
     if [[ ( -z "$ex_season" || "$FORCE" == "true" ) && -n "$new_season" ]]; then
         ap_args+=( --TVSeasonNum "$new_season" )
         write_season="true"; update_info+="Season "
@@ -199,45 +236,32 @@ for file in "${files[@]}"; do
         fi
     fi
 
+    # --- ENTSCHEIDUNG ---
+
     if (( ${#ap_args} == 0 )); then
-        if [[ "$FORCE" == "true" ]]; then
-             [[ "$DRY_RUN" == "true" ]] && echo "[SKIP] Trotz Force: Keine Daten aus Dateinamen extrahierbar."
-             continue
-        else
-             continue
-        fi
+        # Skip wenn nichts zu tun (und Force nichts erzwungen hat was neu wäre)
+        continue
     fi
 
     echo "Datei: $file"
     echo "  -> Muster: $pattern_name"
 
-    if [[ "$FORCE" == "true" ]]; then
-        echo "  -> Update: $update_info (FORCE: Überschreibe)"
-        echo "---------------------------------------------------"
-        printf "DATEI:  %s\n" "$basename"
-        printf "MUSTER: %s\n\n" "$pattern_name"
-        printf "  %-10s | %-30s | %s\n" "TAG" "ALT" "NEU"
-        echo "  -----------------------------------------------------------------------"
-        printf "  %-10s | %-30s | %s\n" "Artist"  "${ex_artist:--}"  "${new_artist}"
-        printf "  %-10s | %-30s | %s\n" "Show"    "${ex_show:--}"    "${new_show}"
-        printf "  %-10s | %-30s | %s\n" "Titel"   "${ex_title:--}"   "${new_title}"
-        printf "  %-10s | %-30s | %s\n" "Staffel" "${ex_season:--}"  "${new_season}"
-        printf "  %-10s | %-30s | %s\n" "Episode" "${ex_episode:--}" "${new_episode}"
-        echo ""
-    else
-        echo "  -> Update: $update_info"
-        echo "---------------------------------------------------"
-        printf "DATEI:  %s\n" "$basename"
-        printf "MUSTER: %s\n\n" "$pattern_name"
-        printf "  %-10s | %-30s | %s\n" "TAG" "ALT" "NEU"
-        echo "  -----------------------------------------------------------------------"
-        printf "  %-10s | %-30s | %s\n" "Artist"  "${ex_artist:--}"  "${new_artist}"
-        printf "  %-10s | %-30s | %s\n" "Show"    "${ex_show:--}"    "${new_show}"
-        printf "  %-10s | %-30s | %s\n" "Titel"   "${ex_title:--}"   "${new_title}"
-        printf "  %-10s | %-30s | %s\n" "Staffel" "${ex_season:--}"  "${new_season}"
-        printf "  %-10s | %-30s | %s\n" "Episode" "${ex_episode:--}" "${new_episode}"
-        echo ""
-    fi
+    # Tabellenausgabe
+    force_txt=""
+    [[ "$FORCE" == "true" ]] && force_txt="(FORCE)"
+    
+    echo "  -> Update: $update_info $force_txt"
+    echo "---------------------------------------------------"
+    printf "DATEI:  %s\n" "$basename"
+    printf "  %-10s | %-30s | %s\n" "TAG" "ALT" "NEU"
+    echo "  -----------------------------------------------------------------------"
+    printf "  %-10s | %-30s | %s\n" "Artist"  "${ex_artist:--}"  "${new_artist}"
+    printf "  %-10s | %-30s | %s\n" "Show"    "${ex_show:--}"    "${new_show}"
+    printf "  %-10s | %-30s | %s\n" "Titel"   "${ex_title:--}"   "${new_title}"
+    printf "  %-10s | %-30s | %s\n" "Jahr"    "${ex_year:--}"    "${new_year}"
+    printf "  %-10s | %-30s | %s\n" "Staffel" "${ex_season:--}"  "${new_season}"
+    printf "  %-10s | %-30s | %s\n" "Episode" "${ex_episode:--}" "${new_episode}"
+    echo ""
 
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "  [DRY-RUN] Würde AtomicParsley starten."
@@ -246,15 +270,12 @@ for file in "${files[@]}"; do
 
     # --- AUSFÜHRUNG ---
 
-    # 1. AtomicParsley ausführen und Output auffangen
     output=$(AtomicParsley "$file" "${ap_args[@]}" --overWrite 2>&1)
     exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
         echo "     [OK] Aktualisiert."
     else
-        # Fehleranalyse: Ist es ein falsches Format oder zu wenig Platz?
-        # NAch den typischen Fehlermeldungen suchen
         if echo "$output" | grep -q -E "bad mpeg4 file|insufficient space"; then
             echo "     [WARNUNG] AtomicParsley gescheitert (Kein MP4-Container oder zu wenig Platz)."
             echo "     -> Starte FFmpeg Reparatur (Remux nach .m4v)..."
@@ -272,12 +293,8 @@ for file in "${files[@]}"; do
             
             if [[ $? -eq 0 ]]; then
                 mv "$temp_fixed" "${file:r}.m4v"
-                
-                # Wenn die Endung vorher anders war (z.B. .mpeg), Original löschen
-                if [[ "${file}" != "${file:r}.m4v" ]]; then
-                    rm "$file"
-                fi
-                echo "     [OK] Datei repariert zu .m4v. Bitte Skript erneut laufen lassen für Tags!"
+                if [[ "${file}" != "${file:r}.m4v" ]]; then rm "$file"; fi
+                echo "     [OK] Datei repariert zu .m4v. Bitte Skript erneut laufen lassen!"
             else
                 echo "     [ERROR] Auch FFmpeg Reparatur gescheitert."
                 rm -f "$temp_fixed"

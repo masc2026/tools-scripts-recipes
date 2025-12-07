@@ -97,6 +97,7 @@ for file in "${files[@]}"; do
     season_number=$(get_tag "$file" "season_number")
     episode_sort=$(get_tag "$file" "episode_sort")
     artist=$(get_tag "$file" "artist")
+    year=$(get_tag "$file" "date")
 
     echo "---------------------------------------------------"
     # %-15s bedeutet: String mit 15 Zeichen Breite, linksbündig
@@ -109,6 +110,7 @@ for file in "${files[@]}"; do
     printf "  %-14s %s\n" "Staffel:"     "${season_number:--}"
     printf "  %-14s %s\n" "Episode:"     "${episode_sort:--}"
     printf "  %-14s %s\n" "Artist:"      "${artist:--}"
+    printf "  %-14s %s\n" "Jahr:"      "${year:--}"
     echo ""
 
 #   if [[ -z "$show" ]]; then
@@ -169,6 +171,19 @@ for file in "${files[@]}"; do
             -geometry +0-200 -composite \
             "$cover_file"
 
+    elif [[ -z "$year" ]]; then
+        magick -size ${WIDTH}x${HEIGHT} xc:grey66 \
+            -depth 8 \
+            -colorspace sRGB \
+            -density 72 -units PixelsPerInch \
+            -gravity center \
+            \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
+                -size ${TEXT_WIDTH}x caption:"$title" \) \
+            -geometry +0-200 -composite \
+            \( -background none -fill "brown" -font "System-Font-Medium" -pointsize 35 \
+                -size ${TEXT_WIDTH}x caption:"$artist" \) \
+            -geometry +0+230 -composite \
+            "$cover_file"
     else
         magick -size ${WIDTH}x${HEIGHT} xc:grey66 \
             -depth 8 \
@@ -178,6 +193,9 @@ for file in "${files[@]}"; do
             \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
                 -size ${TEXT_WIDTH}x caption:"$title" \) \
             -geometry +0-200 -composite \
+            \( -background none -fill "green" -font "System-Font-Medium" -pointsize 65 \
+                -size ${TEXT_WIDTH}x caption:"$year" \) \
+            -geometry +0+100 -composite \
             \( -background none -fill "brown" -font "System-Font-Medium" -pointsize 35 \
                 -size ${TEXT_WIDTH}x caption:"$artist" \) \
             -geometry +0+230 -composite \
