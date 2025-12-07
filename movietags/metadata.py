@@ -3,13 +3,12 @@ import os
 import time
 import argparse
 import sys
-from pathlib import Path
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
 
 # --- KONFIGURATION ---
 API_KEY = os.environ.get("GEMINI_API_KEY", "DEIN_KEY_HIER") 
-INVENTORY_FILE = Path("~/Projekte/github/tools-scripts-recipes/movietags/filme_inventory.json").expanduser()
+INVENTORY_FILE = os.path.expanduser("~/Projekte/github/tools-scripts-recipes/movietags/filme_inventory.json")
 CHUNK_SIZE = 10 
 MODEL_NAME = 'gemini-2.5-flash'
 
