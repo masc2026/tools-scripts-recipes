@@ -12,7 +12,7 @@ Inventarisierung, Metadaten-Anreicherung und Cover-Erstellung für lokale Videos
       * `ffmpeg` (inkl. `ffprobe`)
       * `atomicparsley` (Metadaten schreiben)
       * `imagemagick` (Cover erstellen)
-  * **API-Zugriff:** Google AI Studio Key (Gemini) – *nur für `enrich_metadata.py` nötig*
+  * **API-Zugriff:** Google AI Studio Key (Gemini) – *nur für `metadata.py` nötig*
 
 ## Installation
 
@@ -138,17 +138,95 @@ Liest die Metadaten (`ffprobe`) aus den Dateien und aktualisiert oder ergänzt d
 
 -----
 
-### 4\. KI-Anreicherung (`enrich_metadata.py`)
+### 4\. KI-Anreicherung (`metadata.py`)
 
-*Optional.* Analysiert Einträge in der JSON-Datei, die noch keine Titel-Informationen haben, und fragt diese bei der Google Gemini API ab.
+Analysiert Einträge in der JSON-Datei (`filme_inventory.json`), die unvollständig sind (z.B. fehlendes Jahr oder Originaltitel). Fragt fehlende Informationen (Jahr, Originaltitel, Regisseur, Hauptdarsteller) bei der Google Gemini API ab und ergänzt diese in der lokalen Datenbank.
 
-  * **Vorbereitung:** `export GEMINI_API_KEY="KEY"`
-  * **Aufruf:** `python enrich_metadata.py`
+#### Filterung der zu bearbeitenden Einträge
+
+Das Skript `metadata.py` enthält die interne Funktion `filter_condition` (innerhalb von `process_inventory`), mit der die Auswahl der zu bearbeitenden Datensätze gezielt eingeschränkt werden kann.
+
+* **Standard:** Es werden alle Einträge bearbeitet, die den Kriterien entsprechen.
+* **Anpassung:** Durch Änderung des Quellcodes in dieser Funktion können spezifische Filter definiert werden (z. B. nur Einträge mit `show == "Tatort"` oder `artist` enthält "Hitchcock"). Dies ermöglicht das selektive Aktualisieren bestimmter Teile der Sammlung.
+
+#### Python-Umgebung (Empfohlen: pyenv)
+
+Für eine saubere Ausführung wird die Nutzung einer virtuellen Umgebung via `pyenv` empfohlen.
+
+```bash
+# Installation (macOS)
+brew install pyenv pyenv-virtualenv
+
+# Setup (zshrc)
+echo 'eval "$(pyenv init -)"' >> ~/.zshrc
+echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.zshrc
+source ~/.zshrc
+
+# Umgebung erstellen und aktivieren
+pyenv install 3.12.1
+pyenv virtualenv 3.12.1 movietags-env
+pyenv local movietags-env
+
+# Abhängigkeiten installieren
+pip install google-generativeai
+```
+
+#### Verwendung
+
+1.  **API-Key setzen:**
+    ```bash
+    export GEMINI_API_KEY="DEIN_GOOGLE_AI_KEY"
+    ```
+2.  **Ausführung (Dry Run):** Zeigt geplante Änderungen ohne API-Aufruf.
+    ```bash
+    python metadata.py --dry-run
+    ```
+3.  **Ausführung (Live):**
+    ```bash
+    python metadata.py
+    ```
+    *Option:* `--limit-batches 1` (Begrenzt auf den ersten Stapel zu 10 Filmen).
+
+#### Ergebnis-Beispiel
+
+Das Skript ergänzt automatisch fehlende Metadaten wie `jahr`, `titel.orig` und `darsteller`.
+
+**Vorher (Ausgangsdaten aus `inventory.zsh`):**
+
+```json
+[
+  {
+    "nr": 1,
+    "datei": ".../Alfred Hitchcock - Über den Dächern von Nizza.mp4",
+    "artist": "Alfred Hitchcock",
+    "titel": { "de": "Über den Dächern von Nizza", "orig": "" },
+    "jahr": "",
+    "darsteller": [ { "rolle": "", "actor": "" } ]
+  }
+]
+```
+
+**Nachher (Ergänzt durch `metadata.py`):**
+
+```json
+[
+  {
+    "nr": 1,
+    "datei": ".../Alfred Hitchcock - Über den Dächern von Nizza.mp4",
+    "artist": "Alfred Hitchcock",
+    "titel": { "de": "Über den Dächern von Nizza", "orig": "To Catch a Thief" },
+    "jahr": "1955",
+    "darsteller": [
+      { "rolle": "John Robie", "actor": "Cary Grant" },
+      { "rolle": "Frances Stevens", "actor": "Grace Kelly" }
+    ]
+  }
+]
+```
 
 ## Dateistruktur
 
-  * `data/`: Speicherort der Inventar-Dateien.
   * `tag.zsh`: Schreibt Metadaten aus Dateinamen.
   * `cover.zsh`: Generiert und bettet Cover-Bilder ein.
   * `inventory.zsh`: Aktualisiert die JSON-Datenbank basierend auf Datei-Metadaten.
-  * `enrich_metadata.py`: Ergänzt fehlende Infos via KI.
+  * `metadata.py`: Ergänzt fehlende Infos via KI.

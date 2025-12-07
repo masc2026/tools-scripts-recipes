@@ -4,7 +4,7 @@ zmodload zsh/zutil
 
 # --- Konfiguration ---
 # Pfad zur globalen Datenbank (ggf. absoluten Pfad anpassen!)
-AUSGABE_DATEI="/Users/fama/Projekte/github/tools-scripts-recipes/movietags/filme_inventory.json"
+AUSGABE_DATEI="/Users/user/Projekte/github/tools-scripts-recipes/movietags/filme_inventory.json"
 
 EXTENSIONS="(mp4|m4v|mov|mkv|avi)"
 
@@ -114,8 +114,7 @@ for file in "${files[@]}"; do
     # Absoluter Pfad der Datei
     abs_path="${file:A}"
     # Dateiname (Key für die DB)
-    basename="${file:t:r}" # t = tail (nur Dateiname inkl Endung)
-
+    basename="${file:t}" # t = tail (nur Dateiname inkl Endung)
     is_known="false"
     current_nr=0
     
@@ -141,7 +140,7 @@ for file in "${files[@]}"; do
     m_episode=$(get_tag "$file" "episode_sort")
 
     # Fallback Titel
-    if [[ -z "$m_title" ]]; then m_title="${file:r}"; fi
+    if [[ -z "$m_title" ]]; then m_title="${file:t:r}"; fi
     
     if [[ "$is_known" == "true" ]]; then
         # UPDATE (Force ist an)
@@ -163,8 +162,6 @@ for file in "${files[@]}"; do
     fi
 
     # JSON Objekt bauen
-    # Direkt in die globale Map und den alten Wert überschreiben
-    # Damit ist die DB im Speicher aktualisiert
     
     json_obj=$(jq -n -c \
        --argjson nr "$current_nr" \
@@ -173,20 +170,23 @@ for file in "${files[@]}"; do
        --arg artist "${m_artist}" \
        --arg show "${m_show}" \
        --arg title "${m_title}" \
-       --arg season_number "${m_season_number}" \
        --arg episode "${m_episode}" \
-       --arg episodes "${m_episodes}" \
        '{
           nr: $nr,
           datei: $datei,
           filebasename: $base,
           artist: $artist,
           show: $show,
-          regisseur: { vorname: "", nachname: "", geboren: "" },
+          regisseur: { name: "" },
           titel: { de: $title, orig: "" },
-          season_number: $season_number,
           episode: $episode,
-          episodes: $episodes
+          jahr: "",
+          darsteller: [
+            {
+              "rolle": "",
+              "actor": ""
+            }
+          ]
        }')
 
     db_entries[$basename]=$json_obj

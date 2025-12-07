@@ -11,7 +11,6 @@ API_KEY = os.environ.get("GEMINI_API_KEY", "DEIN_KEY_HIER")
 INVENTORY_FILE = "filme_inventory.json"
 CHUNK_SIZE = 10 
 
-# HIER haben wir dein verfügbares Modell eingetragen:
 MODEL_NAME = 'gemini-2.5-flash'
 
 def configure_genai():
@@ -35,25 +34,39 @@ def save_inventory(data):
     os.replace(temp_file, INVENTORY_FILE)
 
 def build_prompt(movies_chunk):
-    prompt = """
-    Du bist ein Experte für Filmdatenbanken. Deine Aufgabe ist es, Metadaten für Videodateien zu ergänzen.
-    
-    Ich gebe dir eine JSON-Liste mit 'nr', 'filebasename' und teilweise gefüllten Daten.
-    Deine Aufgabe:
-    1. Analysiere den 'filebasename' (Manchmal ist dort auch der Namen des Regisseurs oder Information zur Serie enthalten, du kannst es als Zusatzinfo verwenden. Ignoriere Dinge wie '1080p', 'HD', Nummern am Anfang).
-    2. Identifiziere den Film.
-    3. Ergänze fehlende Daten für:
-       - titel.de (Deutscher Titel)
+    # Das Schema wurde an dein neues Datenmodell angepasst
+    schema_example = """
+    {
+      "nr": 123,
+      "titel": { "de": "Deutscher Titel", "orig": "Originaltitel" },
+      "regisseur": { "name": "Vorname Nachname" },
+      "jahr": "1999",
+      "darsteller": [
+        { "rolle": "Rollenname", "actor": "Schauspieler Name" },
+        { "rolle": "Rollenname", "actor": "Schauspieler Name" }
+      ]
+    }
+    """
+
+    prompt = f"""
+    AUFGABE:
+    Analysiere die folgende Liste von Videodateien (JSON). Ergänze fehlende Metadaten basierend auf 'titel.de', 'jahr' und 'artist' und 'show' und dem 'filebasename' und deinem Wissen über Filme/Serien.
+
+    REGELN:
+    1. Analysiere 'titel.de', 'jahr' und 'artist' und 'show' (falls vorhanden) und 'filebasename' um den Film zu identifizieren.
+    2. Ergänze folgende Felder falls sie leer sind:
        - titel.orig (Originaltitel)
-       - regisseur (vorname, nachname, geburtsjahr als String)
-    
-    WICHTIG:
-    - Verändere NICHT die 'nr'. Das ist der Schlüssel.
-    - Wenn du den Film absolut nicht identifizieren kannst, lasse die Felder leer ("").
-    - Erfinde KEINE Daten.
-    - Antworte NUR mit dem validen JSON Array, kein Markdown, kein Text davor/danach.
-    
-    Hier sind die Filme:
+       - regisseur.name (Vollständiger Name)
+       - jahr (Erscheinungsjahr als String, z.B. "1966")
+       - darsteller (Liste mit 2 bis 3 Hauptdarstellern und ihren Rollennamen)
+    3. WICHTIG: Die 'nr' darf NICHT verändert werden (Identifikator).
+    4. Falls Identifikation unmöglich: Lasse Felder leer (""). Halluziniere keine Daten.
+
+    AUSGABEFORMAT:
+    Antworte ausschließlich mit einer JSON-Liste von Objekten in diesem Format:
+    {schema_example}
+
+    EINGABEDATEN:
     """
     prompt += json.dumps(movies_chunk, ensure_ascii=False)
     return prompt
@@ -65,14 +78,30 @@ def process_inventory(dry_run=False, limit_batches=0):
     
     data = load_inventory()
     
-    # Filter: Nur Filme ohne deutschen Titel bearbeiten
-    todos = [m for m in data if m['titel']['de'] == ""]
+    # --- FILTER KONFIGURATION ---
+    # Definiere hier, welche Einträge in die Todo-Liste kommen.
+    # 'm' ist der einzelne Filmeintrag als Dictionary.
     
-    # --- NEU: SORTIERUNG EINFÜGEN ---
+    def filter_condition(m):
+        # OPTION A: Nur bestimmte Serie (z.B. Tatort)
+        # return m.get('show') == "Tatort"
+        
+        # OPTION B: Nur Einträge, die "Hitchcock" im Artist haben
+        # return "Hitchcock" in m.get('artist', "")
+
+        # OPTION C: Alte Logik (Nur wo deutscher Titel fehlt)
+        # return m['titel']['de'] == ""
+
+        # OPTION D: ALLES (Default - Vorsicht, bearbeitet die ganze DB!)
+        return True
+
+    # Filter anwenden
+    todos = [m for m in data if filter_condition(m)]
+    
+    # Sortieren nach Nummer
     todos.sort(key=lambda x: x['nr'])
-    # --------------------------------
     
-    print(f"Bestand: {len(data)} Filme. Zu bearbeiten: {len(todos)}")
+    print(f"Bestand: {len(data)} Einträge. Zu bearbeiten: {len(todos)}")
     print(f"Verwendetes Modell: {MODEL_NAME}")
     
     if dry_run:
@@ -85,7 +114,6 @@ def process_inventory(dry_run=False, limit_batches=0):
     processed_batches = 0
 
     for i in range(0, len(todos), CHUNK_SIZE):
-        # LIMIT CHECK
         if limit_batches > 0 and processed_batches >= limit_batches:
             print(f"\nLimit von {limit_batches} Batches erreicht. Beende.")
             break
@@ -93,24 +121,28 @@ def process_inventory(dry_run=False, limit_batches=0):
         chunk = todos[i:i + CHUNK_SIZE]
         current_batch_num = int(i/CHUNK_SIZE) + 1
         
-        # Kleine kosmetische Verbesserung: Zeige Start/Ende NR im Log an
         start_nr = chunk[0]['nr']
         end_nr = chunk[-1]['nr']
         print(f"Bearbeite Batch {current_batch_num} (Nr. {start_nr} bis {end_nr})...")
 
+        # Wir bauen einen minimierten Chunk für den Prompt, um Tokens zu sparen,
+        # schicken aber artist/show mit, falls das Inventar-Skript sie schon gefunden hat.
         mini_chunk = []
         for movie in chunk:
             mini_chunk.append({
                 "nr": movie['nr'],
                 "filebasename": movie['filebasename'],
-                "regisseur": movie['regisseur'], 
-                "titel": movie['titel']
+                "jahr": movie['jahr'],
+                "artist": movie.get('artist', ""),
+                "show": movie.get('show', ""),
+                "titel": movie.get('titel', {"de": "", "orig": ""})
             })
 
         prompt = build_prompt(mini_chunk)
 
         if dry_run:
             print(f"[DRY-RUN] Batch {current_batch_num} Payload OK.")
+            # Optional: print(prompt) um zu sehen was rausgeht
             processed_batches += 1
             continue 
 
@@ -126,8 +158,12 @@ def process_inventory(dry_run=False, limit_batches=0):
             for enriched_item in enriched_chunk:
                 original = next((x for x in data if x['nr'] == enriched_item['nr']), None)
                 if original:
+                    # Hier übernehmen wir die neuen Felder in die Datenbank
                     original['titel'] = enriched_item.get('titel', original['titel'])
-                    original['regisseur'] = enriched_item.get('regisseur', original['regisseur'])
+                    original['regisseur'] = enriched_item.get('regisseur', original.get('regisseur', {'name': ''}))
+                    original['jahr'] = enriched_item.get('jahr', original.get('jahr', ''))
+                    original['darsteller'] = enriched_item.get('darsteller', original.get('darsteller', []))
+                    
                     updates_count += 1
             
             print(f"  -> {updates_count} Filme aktualisiert.")
