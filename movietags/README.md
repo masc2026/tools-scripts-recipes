@@ -39,11 +39,44 @@ pip install google-generativeai
 
 ## Empfohlener Workflow
 
-Die Skripte bauen logisch aufeinander auf. Es wird folgende Reihenfolge empfohlen:
+Die Skripte bauen logisch aufeinander auf.
 
-1.  **`tag.zsh`**: Extrahiert Informationen aus dem Dateinamen und schreibt sie als Metadaten in die Datei.
-2.  **`cover.zsh`**: Generiert basierend auf den (in Schritt 1 gesetzten) Metadaten ein Cover und bettet es ein.
-3.  **`inventory.zsh`**: Liest die fertigen Metadaten aus den Dateien und aktualisiert die JSON-Datenbank.
+Für die **initiale Erfassung** oder eine vollständige Neubearbeitung aller Dateien wird folgende Reihenfolge empfohlen:
+
+1.  **`tag.zsh`**: Extrahiert Basis-Informationen (Titel, Show, Staffel) aus dem Dateinamen und schreibt sie als Metadaten in die Datei.
+2.  **`inventory.zsh`**: Liest die Metadaten aus den Dateien und legt neue Einträge in der JSON-Datenbank an.
+3.  **`metadata.py`**: Analysiert die Datenbank und ergänzt fehlende Informationen (Jahr, Originaltitel, Darsteller) via KI.
+4.  **`tag.zsh --force`**: Schreibt die nun vollständigen Daten (inkl. der neuen Infos aus der Datenbank) zurück in die Datei.
+5.  **`cover.zsh`**: Generiert basierend auf den finalen Metadaten ein Cover und bettet es ein.
+
+### Vorgehen bei neuen Dateien (Inkrementell)
+
+Wenn nur einzelne Dateien hinzugekommen sind, wird die Verwendung von Filtern (Pipe-Methode) empfohlen, um zeitintensive Lese-/Schreibvorgänge auf der Festplatte zu minimieren.
+
+**Beispiel:** Neue Dateien "Tatort . Hinz..." und "Tatort . Kunz..." verarbeiten.
+
+**1. Testlauf (Dry Run):**
+
+```bash
+# 1. Basis-Tags aus Dateinamen schreiben
+print -l /Pfad/zu/Tatort*.(Hinz|Kunz)*.mp4 | ./tag.zsh --dry-run
+
+# 2. In Datenbank aufnehmen
+print -l /Pfad/zu/Tatort*.(Hinz|Kunz)*.mp4 | ./inventory.zsh --dry-run
+
+# 3. KI-Daten ergänzen (nur für die übergebenen Dateien)
+print -l /Pfad/zu/Tatort*.(Hinz|Kunz)*.mp4 | python metadata.py --dry-run
+
+# 4. Angereicherte Daten (z.B. Jahr) in Datei schreiben
+print -l /Pfad/zu/Tatort*.(Hinz|Kunz)*.mp4 | ./tag.zsh --dry-run --force
+
+# 5. Cover erstellen
+print -l /Pfad/zu/Tatort*.(Hinz|Kunz)*.mp4 | ./cover.zsh --dry-run --force
+```
+
+**2. Ausführung (Live):**
+
+Wenn die Ausgaben korrekt erscheinen, `--dry-run` entfernen und die Befehle nacheinander ausführen.
 
 ## Verwendung der Zsh-Skripte
 
@@ -77,19 +110,15 @@ Analysiert Dateinamen anhand definierter Muster (z.B. "Artist - Show . Title") u
 
 **Unterstützte Muster für Dateinamen:**
 
-    Artist - Show . Title_S_E_Total
-
-    Artist - Title_S_E_Total
-
-    Title_S_E_Total
-
-    Artist - Show . Title
-
-    Show . Title
-
-    Artist - Title
-
-    Title
+```
+Artist - Show . Title_S_E_Total
+Artist - Title_S_E_Total
+Title_S_E_Total
+Artist - Show . Title
+Show . Title
+Artist - Title
+Title
+```
 
 **Beispiel (Mehrere Dateien per Pipe testen):**
 
@@ -112,20 +141,20 @@ Das generierte Cover sorgt für eine korrekte Darstellung in der TV App (macOS/i
 
 <table align="center">
   <tr>
-    <td align="center">
-      <img src="data/img/Screen04.png" height="300">
-    </td>
-    <td align="center">
-      <img src="data/img/Screen03.png" height="300">
-    </td>
+  <td align="center">
+    <img src="data/img/Screen04.png" height="300">
+  </td>
+  <td align="center">
+    <img src="data/img/Screen03.png" height="300">
+  </td>
   </tr>
   <tr>
-    <td align="center">
-      <img src="data/img/Screen01.png" height="300">
-    </td>
-    <td align="center">
-      <img src="data/img/Screen02.png" height="300">
-    </td>
+  <td align="center">
+    <img src="data/img/Screen01.png" height="300">
+  </td>
+  <td align="center">
+    <img src="data/img/Screen02.png" height="300">
+  </td>
   </tr>
 </table>
 
@@ -142,12 +171,20 @@ Liest die Metadaten (`ffprobe`) aus den Dateien und aktualisiert oder ergänzt d
 
 Analysiert Einträge in der JSON-Datei (`filme_inventory.json`), die unvollständig sind (z.B. fehlendes Jahr oder Originaltitel). Fragt fehlende Informationen (Jahr, Originaltitel, Regisseur, Hauptdarsteller) bei der Google Gemini API ab und ergänzt diese in der lokalen Datenbank.
 
-#### Filterung der zu bearbeitenden Einträge
+#### Modi der Datenauswahl
 
-Das Skript `metadata.py` enthält die interne Funktion `filter_condition` (innerhalb von `process_inventory`), mit der die Auswahl der zu bearbeitenden Datensätze gezielt eingeschränkt werden kann.
+Das Skript unterstützt zwei Methoden, um festzulegen, welche Einträge bearbeitet werden:
 
-* **Standard:** Es werden alle Einträge bearbeitet, die den Kriterien entsprechen.
-* **Anpassung:** Durch Änderung des Quellcodes in dieser Funktion können spezifische Filter definiert werden (z. B. nur Einträge mit `show == "Tatort"` oder `artist` enthält "Hitchcock"). Dies ermöglicht das selektive Aktualisieren bestimmter Teile der Sammlung.
+1.  **Pipe-Modus (Gezielt):**
+    Werden Dateinamen per Pipe übergeben, sucht das Skript die passenden Einträge in der Datenbank (Matching über `filebasename`) und bearbeitet nur diese. Dies ist die **empfohlene Methode** für inkrementelle Updates.
+
+      * *Aufruf:* `print -l *Tatort* | python metadata.py`
+
+2.  **Automatik (Standard):**
+    Ohne Pipe-Eingabe durchsucht das Skript das aktuelle Verzeichnis nach Videodateien, matcht diese gegen die Datenbank und bearbeitet Einträge, bei denen wichtige Daten fehlen.
+
+      * *Konfiguration:* Die interne Logik für fehlende Daten kann in der Funktion `process_inventory` angepasst werden.
+      * *Aufruf:* `python metadata.py`
 
 #### Python-Umgebung (Empfohlen: pyenv)
 
@@ -179,7 +216,8 @@ pip install google-generativeai
     ```
 2.  **Ausführung (Dry Run):** Zeigt geplante Änderungen ohne API-Aufruf.
     ```bash
-    python metadata.py --dry-run
+    # Gezielt für bestimmte Dateien (empfohlen)
+    print -l /Pfad/zu/*Tatort* | python metadata.py --dry-run
     ```
 3.  **Ausführung (Live):**
     ```bash
