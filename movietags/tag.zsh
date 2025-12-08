@@ -201,6 +201,12 @@ for file in "${files[@]}"; do
             new_show="${match[1]}"; new_title="${match[2]}"
             match_found="true"; pattern_name="Show . Title"
 
+        # 7. Show . Title_S_E_Total
+        elif [[ "$basename" =~ "^([^_.-]+) \. ([^_.-]+)_([0-9]+)_([0-9]+)_([0-9]+)$" ]]; then
+            new_show="${match[1]}"; new_title="${match[2]}"
+            new_season="${match[3]}"; new_episode="${match[4]}"; new_total="${match[5]}"
+            match_found="true"; pattern_name="Show . Title_S_E_Total"
+
         # 5. Artist - Title
         elif [[ "$basename" =~ "^([^_.-]+) - ([^_.-]+)$" ]]; then
             new_artist="${match[1]}"; new_title="${match[2]}"

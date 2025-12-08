@@ -168,7 +168,7 @@ for file in "${files[@]}"; do
             -density 72 -units PixelsPerInch \
             -gravity center \
             \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
-                -size ${TEXT_WIDTH}x pango:"$title" \) \
+                -size ${TEXT_WIDTH}x caption:"$title" \) \
             -geometry +0-200 -composite \
             "$cover_file"
 
@@ -180,10 +180,10 @@ for file in "${files[@]}"; do
             -density 72 -units PixelsPerInch \
             -gravity center \
             \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
-                -size ${TEXT_WIDTH}x pango:"$title" \) \
+                -size ${TEXT_WIDTH}x caption:"$title" \) \
             -geometry +0-200 -composite \
             \( -background none -fill "brown" -font "System-Font-Medium" -pointsize 35 \
-                -size ${TEXT_WIDTH}x pango:"$artist" \) \
+                -size ${TEXT_WIDTH}x caption:"$artist" \) \
             -geometry +0+230 -composite \
             "$cover_file"
 
@@ -195,7 +195,7 @@ for file in "${files[@]}"; do
             -density 72 -units PixelsPerInch \
             -gravity center \
             \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
-                -size ${TEXT_WIDTH}x pango:"$title" \) \
+                -size ${TEXT_WIDTH}x caption:"$title" \) \
             -geometry +0-200 -composite \
             \( -background none -fill "green" -font "System-Font-Medium" -pointsize 65 \
                 -size ${TEXT_WIDTH}x caption:"$year" \) \
@@ -210,13 +210,13 @@ for file in "${files[@]}"; do
             -density 72 -units PixelsPerInch \
             -gravity center \
             \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
-                -size ${TEXT_WIDTH}x pango:"$title" \) \
+                -size ${TEXT_WIDTH}x caption:"$title" \) \
             -geometry +0-200 -composite \
             \( -background none -fill "green" -font "System-Font-Medium" -pointsize 65 \
                 -size ${TEXT_WIDTH}x caption:"$year" \) \
             -geometry +0+100 -composite \
             \( -background none -fill "brown" -font "System-Font-Medium" -pointsize 35 \
-                -size ${TEXT_WIDTH}x pango:"$artist" \) \
+                -size ${TEXT_WIDTH}x caption:"$artist" \) \
             -geometry +0+230 -composite \
             "$cover_file"
     fi
