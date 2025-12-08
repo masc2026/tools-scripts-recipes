@@ -155,6 +155,7 @@ Artist - Title_S_E_Total
 Title_S_E_Total
 Artist - Show . Title
 Show . Title
+Show . Title_S_E_Total
 Artist - Title
 Title
 ```
