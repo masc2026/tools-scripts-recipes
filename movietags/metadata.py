@@ -35,43 +35,6 @@ def save_inventory(data):
         json.dump(data, f, indent=2, ensure_ascii=False)
     os.replace(temp_file, INVENTORY_FILE)
 
-def build_prompt(movies_chunk):
-    schema_example = """
-    {
-      "nr": 123,
-      "titel": { "de": "Deutscher Titel", "orig": "Originaltitel" },
-      "regisseur": { "name": "Vorname Nachname" },
-      "jahr": "1999",
-      "darsteller": [
-        { "rolle": "Rollenname", "actor": "Schauspieler Name" },
-        { "rolle": "Rollenname", "actor": "Schauspieler Name" }
-      ]
-    }
-    """
-
-    prompt = f"""
-    AUFGABE:
-    Analysiere die folgende Liste von Videodateien (JSON). Ergänze fehlende Metadaten basierend auf 'titel.de', 'jahr', 'artist', 'show', 'filebasename' und deinem Wissen über Filme/Serien.
-
-    REGELN:
-    1. Analysiere alle verfügbaren Felder um den Film zu identifizieren.
-    2. Ergänze folgende Felder falls sie leer sind:
-       - titel.orig (Originaltitel)
-       - regisseur.name (Vollständiger Name)
-       - jahr (Erscheinungsjahr als String, z.B. "1966")
-       - darsteller (Liste mit 2 bis 3 Hauptdarstellern und ihren Rollennamen)
-    3. WICHTIG: Die 'nr' darf NICHT verändert werden.
-    4. Falls Identifikation unmöglich: Lasse Felder leer ("").
-
-    AUSGABEFORMAT:
-    Antworte ausschließlich mit einer JSON-Liste von Objekten in diesem Format:
-    {schema_example}
-
-    EINGABEDATEN:
-    """
-    prompt += json.dumps(movies_chunk, ensure_ascii=False)
-    return prompt
-
 def get_target_files():
     """Ermittelt die zu bearbeitenden Dateinamen (Pipe oder Lokal)."""
     target_files = []
@@ -79,7 +42,6 @@ def get_target_files():
     # FALL A: Pipe Input
     if not sys.stdin.isatty():
         print("Modus: Pipe Input")
-        # Zeilenweise lesen und den basename holen (z.B. aus /Pfad/zu/Film.mp4 -> Film.mp4)
         for line in sys.stdin:
             line = line.strip()
             if line:
@@ -97,7 +59,44 @@ def get_target_files():
             
     return target_files
 
-def process_inventory(dry_run=False, limit_batches=0):
+def build_prompt(movies_chunk):
+    # Wir definieren das Schema textuell im Prompt.
+    # Das ist für das Modell einfacher zu verstehen als Pydantic-Objekte via SDK.
+    schema_example = """
+    [
+      {
+        "nr": 123,
+        "titel": { "de": "Deutscher Titel", "orig": "Originaltitel" },
+        "regisseur": { "name": "Vorname Nachname" },
+        "jahr": "1999",
+        "darsteller": [
+          { "rolle": "Rollenname", "actor": "Schauspieler Name" },
+          { "rolle": "Rollenname", "actor": "Schauspieler Name" }
+        ]
+      }
+    ]
+    """
+
+    prompt = f"""
+    AUFGABE:
+    Analysiere die folgende Liste von Videodateien. Ergänze fehlende Metadaten basierend auf 'titel.de', 'jahr', 'artist' und deinem Wissen.
+    Du kannst Tools (Google Suche) nutzen, wenn du Informationen wie das Jahr oder den Originaltitel nicht weißt.
+
+    REGELN:
+    1. Ergänze fehlende Felder: titel.orig, regisseur.name, jahr (String), darsteller (2-3 Hauptrollen).
+    2. Verändere NIEMALS die 'nr'.
+    3. Gib NIEMALS Markdown-Formatierung (```json) aus, sondern nur den reinen JSON-String.
+
+    AUSGABEFORMAT:
+    Antworte ausschließlich mit einer JSON-Liste in diesem Format:
+    {schema_example}
+
+    EINGABEDATEN:
+    """
+    prompt += json.dumps(movies_chunk, ensure_ascii=False)
+    return prompt
+
+def process_inventory(dry_run=False, force=False, limit_batches=0):
     # 1. ZIELE BESTIMMEN
     target_basenames = get_target_files()
     
@@ -115,33 +114,25 @@ def process_inventory(dry_run=False, limit_batches=0):
     data = load_inventory()
     
     # 3. ABGLEICH & FILTERUNG
-    # Einträge in der DB, die zu den Dateien gehören
-    # UND bei denen noch Daten fehlen.
-    
     target_set = set(target_basenames)
     todos = []
     
     for m in data:
-        # Ist der Film in unserer Dateiliste?
         if m.get('filebasename') in target_set:
-            
-            # Check: Fehlen Daten? (Wir wollen ja anreichern)
             missing_year = not m.get('jahr')
             missing_orig = not m.get('titel', {}).get('orig')
             missing_cast = not m.get('darsteller')
             
-            # Wenn irgendwas wichtiges fehlt -> Ab auf die Todo-Liste
-            if missing_year or missing_orig or missing_cast:
+            if force or missing_year or missing_orig or missing_cast:
                 todos.append(m)
     
-    # Sortieren
     todos.sort(key=lambda x: x['nr'])
     
     print(f"Bestand DB gesamt: {len(data)}")
-    print(f"Davon zu bearbeiten (weil unvollständig): {len(todos)}")
+    print(f"Davon zu bearbeiten: {len(todos)}")
     
     if not todos:
-        print("Nichts zu tun (Alle ausgewählten Dateien sind bereits vollständig).")
+        print("Nichts zu tun.")
         return
 
     if dry_run:
@@ -150,6 +141,11 @@ def process_inventory(dry_run=False, limit_batches=0):
         print(f"Verwendetes Modell: {MODEL_NAME}")
 
     processed_batches = 0
+
+    # Config für JSON Output
+    generation_config = GenerationConfig(
+        response_mime_type="application/json"
+    )
 
     for i in range(0, len(todos), CHUNK_SIZE):
         if limit_batches > 0 and processed_batches >= limit_batches:
@@ -174,6 +170,7 @@ def process_inventory(dry_run=False, limit_batches=0):
                 "titel": movie.get('titel', {"de": "", "orig": ""})
             })
 
+        # Prompt bauen (Text-basiert)
         prompt = build_prompt(mini_chunk)
 
         if dry_run:
@@ -182,22 +179,43 @@ def process_inventory(dry_run=False, limit_batches=0):
             continue 
 
         try:
-            response = model.generate_content(
-                prompt,
-                generation_config=GenerationConfig(response_mime_type="application/json")
-            )
+            response = model.generate_content(prompt, generation_config=generation_config)
             
-            enriched_chunk = json.loads(response.text)
-            
+            # Parsing-Versuch mit Fallback
+            try:
+                enriched_data = json.loads(response.text)
+            except Exception as parse_err:
+                print(f"  Warnung: Parsing fehlgeschlagen ({parse_err}). Versuche Cleaning...")
+                # Manchmal liefert das Modell Markdown trotz Verbot
+                clean_text = response.text.replace("```json", "").replace("```", "").strip()
+                enriched_data = json.loads(clean_text)
+
             updates_count = 0
-            for enriched_item in enriched_chunk:
+            for enriched_item in enriched_data:
                 original = next((x for x in data if x['nr'] == enriched_item['nr']), None)
                 if original:
                     original['titel'] = enriched_item.get('titel', original['titel'])
-                    original['regisseur'] = enriched_item.get('regisseur', original.get('regisseur', {'name': ''}))
                     original['jahr'] = enriched_item.get('jahr', original.get('jahr', ''))
                     original['darsteller'] = enriched_item.get('darsteller', original.get('darsteller', []))
                     
+                    # Robuste Regisseur Übernahme
+                    raw_dir = enriched_item.get('regisseur', {}).get('name', '')
+                    new_director = ""
+                    if isinstance(raw_dir, dict):
+                        new_director = raw_dir.get('name', '')
+                    elif isinstance(raw_dir, str) and raw_dir.strip().startswith('{'):
+                         try: new_director = json.loads(raw_dir).get('name', '')
+                         except: new_director = raw_dir
+                    else:
+                        new_director = raw_dir
+
+                    if new_director:
+                        if 'regisseur' not in original: original['regisseur'] = {}
+                        original['regisseur']['name'] = new_director
+                        # Artist nur setzen wenn leer
+                        if not original.get('artist'):
+                            original['artist'] = new_director
+
                     updates_count += 1
             
             print(f"  -> {updates_count} Filme aktualisiert.")
@@ -207,8 +225,9 @@ def process_inventory(dry_run=False, limit_batches=0):
         except Exception as e:
             error_msg = str(e)
             print(f"  ERROR: {error_msg}")
-            if "404" in error_msg or "not found" in error_msg.lower():
-                print("\nFATALER FEHLER: Modell nicht gefunden.")
+            # Nur bei echten 404/Auth Fehlern abbrechen
+            if "404" in error_msg or "not found" in error_msg.lower() or "API_KEY" in error_msg:
+                print("\nFATALER FEHLER: Modell oder Key ungültig.")
                 sys.exit(1)
             
         finally:
@@ -219,7 +238,8 @@ def process_inventory(dry_run=False, limit_batches=0):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--force", action="store_true")
     parser.add_argument("--limit-batches", type=int, default=0)
     args = parser.parse_args()
     
-    process_inventory(dry_run=args.dry_run, limit_batches=args.limit_batches)
+    process_inventory(dry_run=args.dry_run, force=args.force, limit_batches=args.limit_batches)

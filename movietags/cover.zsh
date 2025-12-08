@@ -160,30 +160,49 @@ for file in "${files[@]}"; do
     HEIGHT=720
     TEXT_WIDTH=$((WIDTH - 90))
 
-    if [[ -z "$artist" ]]; then
+    # Fall 1: Weder Artist noch Jahr vorhanden (Nur Titel)
+    if [[ -z "$artist" && -z "$year" ]]; then
         magick -size ${WIDTH}x${HEIGHT} xc:grey66 \
             -depth 8 \
             -colorspace sRGB \
             -density 72 -units PixelsPerInch \
             -gravity center \
             \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
-                -size ${TEXT_WIDTH}x caption:"$title" \) \
+                -size ${TEXT_WIDTH}x pango:"$title" \) \
             -geometry +0-200 -composite \
             "$cover_file"
 
-    elif [[ -z "$year" ]]; then
+    # Fall 2: Artist da, aber kein Jahr (Titel + Artist)
+    elif [[ -n "$artist" && -z "$year" ]]; then
         magick -size ${WIDTH}x${HEIGHT} xc:grey66 \
             -depth 8 \
             -colorspace sRGB \
             -density 72 -units PixelsPerInch \
             -gravity center \
             \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
-                -size ${TEXT_WIDTH}x caption:"$title" \) \
+                -size ${TEXT_WIDTH}x pango:"$title" \) \
             -geometry +0-200 -composite \
             \( -background none -fill "brown" -font "System-Font-Medium" -pointsize 35 \
-                -size ${TEXT_WIDTH}x caption:"$artist" \) \
+                -size ${TEXT_WIDTH}x pango:"$artist" \) \
             -geometry +0+230 -composite \
             "$cover_file"
+
+    # Fall 3: Jahr da, aber kein Artist (Titel + Jahr)
+    elif [[ -z "$artist" && -n "$year" ]]; then
+        magick -size ${WIDTH}x${HEIGHT} xc:grey66 \
+            -depth 8 \
+            -colorspace sRGB \
+            -density 72 -units PixelsPerInch \
+            -gravity center \
+            \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
+                -size ${TEXT_WIDTH}x pango:"$title" \) \
+            -geometry +0-200 -composite \
+            \( -background none -fill "green" -font "System-Font-Medium" -pointsize 65 \
+                -size ${TEXT_WIDTH}x caption:"$year" \) \
+            -geometry +0+100 -composite \
+            "$cover_file"
+
+    # Fall 4: Alles da (Titel + Jahr + Artist)
     else
         magick -size ${WIDTH}x${HEIGHT} xc:grey66 \
             -depth 8 \
@@ -191,13 +210,13 @@ for file in "${files[@]}"; do
             -density 72 -units PixelsPerInch \
             -gravity center \
             \( -background none -fill "white" -font "System-Font-Semibold" -pointsize 55 \
-                -size ${TEXT_WIDTH}x caption:"$title" \) \
+                -size ${TEXT_WIDTH}x pango:"$title" \) \
             -geometry +0-200 -composite \
             \( -background none -fill "green" -font "System-Font-Medium" -pointsize 65 \
                 -size ${TEXT_WIDTH}x caption:"$year" \) \
             -geometry +0+100 -composite \
             \( -background none -fill "brown" -font "System-Font-Medium" -pointsize 35 \
-                -size ${TEXT_WIDTH}x caption:"$artist" \) \
+                -size ${TEXT_WIDTH}x pango:"$artist" \) \
             -geometry +0+230 -composite \
             "$cover_file"
     fi
@@ -235,7 +254,8 @@ for file in "${files[@]}"; do
             # Falls die Originaldatei NICHT .m4v hieß (z.B. .mov), das Original löschen
             if [[ "${file}" != "${file:r}.m4v" ]]; then
                 rm "$file"
-                echo "     [INFO] Datei wurde von .${file:e} zu .m4v konvertiert."
+                echo "     [INFO] ⚠️ Datei wurde von .${file:e} zu .m4v konvertiert."
+                echo "     [INFO] ⚠️ Der Dateinamen muss in der JSON DB geändert werden!"
             fi
             
             echo "     [OK] Cover eingebettet & Container repariert."
