@@ -1,0 +1,35 @@
+#!/usr/bin/expect -f
+
+## Stellt eine VPN-Verbindung zur FernUni Hagen her,
+## indem die Zugangsdaten aus dem Linux-Keyring gelesen werden und 
+## ein Token abgefragt wird.
+## Die Zugangsdaten können z.B. mit dem Script "setup-vpn-secret.sh"
+## in den Keyring eingetragen werden.
+##
+## Getestet unter Arch Linux.
+## Benötigte Pakete (Arch Linux):
+##   - openconnect     (VPN-Client, AnyConnect-kompatibel)
+##   - expect          (für automatisierte Eingaben)
+##   - libsecret       (für 'secret-tool' zum Zugriff auf den Keyring)
+##
+## Hinweis:
+## Das Script nutzt den GNOME-Keyring für Abruf der Zugangsdaten.
+## Der GNOME-Keyring steht in der Regel nur innerhalb einer laufenden GNOME- oder
+## grafischen Desktop-Sitzung zur Verfügung. Bei reinem SSH-Login ist der Zugriff
+## auf die gespeicherten Daten normalerweise nicht möglich.
+
+set timeout -1
+
+set username [exec secret-tool lookup vpn fernuni key user]
+set password [exec secret-tool lookup vpn fernuni key password]
+
+spawn sudo -E openconnect --protocol=anyconnect vpn.fernuni-hagen.de
+
+expect "Username:"
+send "$username\r"
+
+expect "Password:"
+send "$password\r"
+
+# Token-Prompt
+interact
