@@ -1,0 +1,37 @@
+{
+  "ssh": {
+    "config": "./config_tmp.txt",
+    "host01": {
+      "group" : "Raspberry Pi",
+      "addresses": {
+        "_name": "rspb01",
+        "lan" : "192.168.2.101",
+        "_direct" : "10.10.10.1"
+      },
+      "user": {
+        "userX": {
+          "privatekeyfile": "keys/host01_userX",
+          "publickeyfile": "keys/host01_userX.pub"
+        },
+        "userY": {
+          "privatekeyfile": "keys/host01_userY",
+          "publickeyfile": "keys/host01_userY.pub"
+        }
+      }
+    },
+    "host02": {
+      "group" : "Raspberry Pi",
+      "addresses": {
+        "_name": "rspb02",
+        "lan" : "192.168.2.102",
+        "_direct" : "10.10.10.2"
+      },
+      "user": {
+        "userU": {
+          "privatekeyfile": "keys/host02_userU",
+          "publickeyfile": "keys/host02_userU.pub"
+        }
+      }
+    }
+  }
+}
