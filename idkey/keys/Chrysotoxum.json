@@ -1,0 +1,86 @@
+{
+  "metadata": {
+    "title": "Fliegen-Finder: Wespenschwebfliegen",
+    "source_inspiration": "Basierend auf morphologischen Merkmalen der Gattung Chrysotoxum",
+    "description": "Vereinfachter Bestimmungsweg für den Hobby-Entomologen."
+  },
+  "steps": {
+    "1": {
+      "frage": "Schau dir die Fühlerbasis an:",
+      "option_1": "Die ersten zwei Fühlerglieder sind zusammen kürzer als das lange Endglied (oder gleich lang).",
+      "ziel_1": "2",
+      "option_2": "Die ersten zwei Glieder sind zusammen deutlich länger als das Endglied.",
+      "ziel_2": "5"
+    },
+    "2": {
+      "frage": "Wie behaart ist der Hinterleib in der Mitte?",
+      "option_1": "Deutlich pelzig behaart; die gelben Binden an den Rändern gehen kaum über die Seite hinaus.",
+      "ziel_1": "3",
+      "option_2": "Fast nackt oder nur ganz kurz behaart. (Hier beginnt der 'intermedium-Komplex').",
+      "ziel_2": "11"
+    },
+    "11": {
+      "frage": "Unterscheidung im intermedium-Komplex (Thorax & Hinterleib):",
+      "option_1": "Graue Rückenstreifen jeweils breiter als der schwarze Zwischenraum; Gelbe Flecken auf Segment 2 stark verbreitert (dreieckig); Hinterschenkel oft weit schwarz.",
+      "ziel_1": "Chrysotoxum lessonae",
+      "option_2": "Graue Rückenstreifen jeweils schmaler als der schwarze Zwischenraum; Gelbe Flecken auf Segment 2 eher balkenförmig; Hinterschenkel weniger schwarz.",
+      "ziel_2": "Chrysotoxum intermedium (s. str.)"
+    },
+    "3": {
+      "frage": "Farbe des kleinen Schildchens (das Dreieck hinter dem Rückenpanzer):",
+      "option_1": "Komplett gelb oder gelb mit einem dunklen Fleck in der Mitte.",
+      "ziel_1": "4",
+      "option_2": "Gelb, aber die hintere Hälfte ist deutlich bräunlich; Rücken ist lang schwarz behaart.",
+      "ziel_2": "Chrysotoxum fasciolatum"
+    },
+    "4": {
+      "frage": "Dreh die Fliege um (Bauchseite). Wo sitzen die gelben Flecken auf den Bauchplatten?",
+      "option_1": "Die Flecken sitzen ganz vorne am Rand der jeweiligen Platte.",
+      "ziel_1": "Chrysotoxum cautum",
+      "option_2": "Die Flecken sitzen eher mittig auf den Bauchplatten.",
+      "ziel_2": "Chrysotoxum arcuatum"
+    },
+    "5": {
+      "frage": "Vergleiche die gelben Streifen auf dem Rücken:",
+      "option_1": "Alle gelben Bögen sind ungefähr gleich breit.",
+      "ziel_1": "6",
+      "option_2": "Abwechselnd sehr breit und sehr schmal (oder fehlend).",
+      "ziel_2": "Chrysotoxum bicinctum"
+    },
+    "6": {
+      "frage": "Reichen die gelben Streifen bis ganz an den Rand des Körpers?",
+      "option_1": "Nein, die Streifen hören kurz vor dem Rand auf; Flügel haben vorne oft einen braunen Fleck.",
+      "ziel_1": "7",
+      "option_2": "Ja, die gelben Streifen gehen voll bis über die Seitenkante rüber; Flügel sind klar.",
+      "ziel_2": "9"
+    },
+    "7": {
+      "frage": "Farbe des Rückenschildchens und Form des Körpers:",
+      "option_1": "Schildchen ist schwarz; Körper wirkt schmal mit geraden Seiten.",
+      "ziel_1": "Chrysotoxum lineare",
+      "option_2": "Schildchen ist gelb (mit dunkler Mitte); Körper ist eher eiförmig/oval.",
+      "ziel_2": "8"
+    },
+    "8": {
+      "frage": "Farbe der Beine (Oberschenkel):",
+      "option_1": "Die Beine sind komplett rot-gelb.",
+      "ziel_1": "Chrysotoxum festivum",
+      "option_2": "Die Beine sind ganz oben am Körper (an der Basis) schwarz gefärbt.",
+      "ziel_2": "Chrysotoxum vernale"
+    },
+    "9": {
+      "frage": "Schau auf das zweite Segment des Hinterleibs (von oben):",
+      "option_1": "Die gelben Flecken oben verlaufen fast gerade/parallel zum Vorderrand.",
+      "ziel_1": "Chrysotoxum verralli",
+      "option_2": "Die gelben Flecken sind zu den Seiten hin deutlich nach hinten gebogen.",
+      "ziel_2": "10"
+    },
+    "10": {
+      "frage": "Gibt es gelbe Säume an den Hinterrändern der Segmente?",
+      "option_1": "Ja, breite gelbe Ränder sind auf allen Segmenten (ab dem zweiten) vorhanden.",
+      "ziel_1": "Chrysotoxum octomaculatum",
+      "option_2": "Meistens fehlt der gelbe Rand am zweiten Segment; die restlichen Ränder sind sehr schmal.",
+      "ziel_2": "Chrysotoxum elegans"
+    }
+  }
+}
