@@ -1,0 +1,65 @@
+@define-color orange_100 #ff6400;
+@define-color orange_75 #ffaa00;
+@define-color orange_45 #ffe3aa;
+@define-color green_45 #6ee467;
+@define-color green_75 #15bb0c;
+
+window decoration {
+    margin: 10px;
+    border: 2px solid darkgray;
+}
+
+dialog decoration {
+    margin: 10px;
+    border: 2px solid darkgray;
+}
+
+#plugins_vbox_left #iop-panel-label {
+    color: @orange_45;
+}
+
+/* Dunkelkammer und Leuchttisch */
+
+box#left box#plugins_vbox_left label#lib-panel-label {
+    color: @green_45;
+}
+
+box#right box#plugins_vbox_left label#lib-panel-label {
+    color: @green_45;
+}
+
+/* Dunkelkammer */
+
+/* rechts */
+
+/* Modul Labels Schnellzugriffsgruppe */
+
+box#right box#basics-box-labels button:checked ~ .dt_section_label {
+    color: @orange_75;
+}
+
+box#right box#basics-box-labels .dt_section_label {
+    color: @orange_45;
+}
+
+/* Modul Labels */
+
+box#right box#plugins_vbox_left box#iop-expander box#module-header label#iop-panel-label {
+    color: @orange_45;
+}
+
+box#right box#plugins_vbox_left box#iop-expander box#module-header button:checked ~ widget label#iop-panel-label {
+    color: @orange_75;
+}
+
+/* hover */
+
+.dt_module_btn:hover,
+.combo:hover,
+.combo:hover cellview,
+.dt_bauhaus:hover,
+combobox window *:hover,
+menuitem:hover > arrow
+{
+    color: #ff0000;
+}

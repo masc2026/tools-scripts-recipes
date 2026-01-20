@@ -1,0 +1,10 @@
+*.xcuserdatad
+*.xcworkspace/xcshareddata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/
+build/
+DerivedData/
+.DS_Store
+.AppleDouble
+.LSOverride
+ValidateTaxaDBShareFiles/ValidateTaxaDBShareFiles

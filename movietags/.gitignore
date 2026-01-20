@@ -1,0 +1,14 @@
+.python-version
+.venv/
+/*.json
+
+# Test-Medien und temporäre Verzeichnisse
+test/movies/
+test/cover/
+test/filme_inventory/
+test/filme_inventory.json
+filme_inventory.json
+cover/
+filme_inventory/
+src/update_extension.zsh
+src/compare_sdcard.zsh
