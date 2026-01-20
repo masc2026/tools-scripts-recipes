@@ -1,0 +1,66 @@
+MATH_REPO_DIR="${0:A:h}"
+
+# Pfade basierend auf dem Repo-Pfad
+MASTER_DEFS="$MATH_REPO_DIR/master.zsh"
+FUNC_DIR="$MATH_REPO_DIR/.zfunc"
+COLOR_FILE="$MATH_REPO_DIR/.zfunc_colors"
+SYMBOLS_FILE="$MATH_REPO_DIR/.zfunc_symbols"
+BACKUP_BASE="$MATH_REPO_DIR/.backups"
+
+# fpath für Lazy Loading hinzufügen
+fpath=("$FUNC_DIR" $fpath)
+
+function update-math-funcs() {
+    zmodload zsh/pcre 2>/dev/null
+    setopt localoptions rematchpcre extendedglob
+
+    [[ -f "$MASTER_DEFS" ]] || { print "Fehler: $MASTER_DEFS nicht gefunden."; return 1 }
+    [[ -f "$COLOR_FILE" ]] || { print "Fehler: $COLOR_FILE nicht gefunden."; return 1 }
+    [[ -f "$SYMBOLS_FILE" ]] || { print "Fehler: $SYMBOLS_FILE nicht gefunden."; return 1 }
+
+    # Ganzen Ordner moven (falls vorhanden)
+    if [[ -d "$FUNC_DIR" ]]; then
+        local timestamp=$(date +%Y%m%d_%H%M%S)
+        local backup_path="$BACKUP_BASE/zfunc_backup_$timestamp"
+        mkdir -p "$BACKUP_BASE"
+        mv "$FUNC_DIR" "$backup_path"
+        print "Backup erstellt: $backup_path"
+    fi
+
+    # Ordner immer frisch anlegen
+    mkdir -p "$FUNC_DIR"
+    
+    local content=$(<"$MASTER_DEFS")
+    local regex='(?s)function\s+([a-zA-Z0-9_-]+)\s*\(\)\s*\{([\s\S]*?)\n\}'
+
+    while [[ "$content" =~ $regex ]]; do
+        local func_name="${match[1]}"
+        local body="${match[2]}"
+        
+        local -a lines=("${(@f)body}")
+        lines=( "${lines[@]##[[:blank:]]#}" )
+        body="${(F)lines}"
+
+        {
+            print "source $COLOR_FILE"
+            print "source $SYMBOLS_FILE"
+            print -r -- "$body"
+        } > "$FUNC_DIR/$func_name"
+        
+        print "Exportiert: $func_name"
+        content="${content[$MEND+1,-1]}"
+        
+        unfunction "$func_name" 2>/dev/null
+        autoload -Uz "$func_name"
+    done
+    
+    rehash
+    print "Funktionen wurden nach $FUNC_DIR exportiert."
+}
+
+# Registrierung der vorhandenen Funktionen beim Start
+if [[ -d "$FUNC_DIR" ]]; then
+    for func in "$FUNC_DIR"/*(N:t); do
+        autoload -Uz "$func"
+    done
+fi

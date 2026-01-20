@@ -1,0 +1,62 @@
+# Schreibschrift-Alphabet
+local M_SYS_A="${M_SYS}𝒜${M_RESET}"
+local M_SYS_B="${M_SYS}ℬ${M_RESET}"
+local M_SYS_C="${M_SYS}𝒞${M_RESET}"
+local M_SYS_D="${M_SYS}𝒟${M_RESET}"
+local M_SYS_E="${M_SYS}ℰ${M_RESET}"
+local M_SYS_F="${M_SYS}ℱ${M_RESET}"
+local M_SYS_G="${M_SYS}𝒢${M_RESET}"
+local M_SYS_H="${M_SYS}ℋ${M_RESET}"
+local M_SYS_I="${M_SYS}ℐ${M_RESET}"
+local M_SYS_J="${M_SYS}𝒥${M_RESET}"
+local M_SYS_K="${M_SYS}𝒦${M_RESET}"
+local M_SYS_L="${M_SYS}ℒ${M_RESET}"
+local M_SYS_M="${M_SYS}ℳ${M_RESET}"
+local M_SYS_N="${M_SYS}𝒩${M_RESET}"
+local M_SYS_O="${M_SYS}𝒪${M_RESET}"
+local M_SYS_P="${M_SYS}𝒫${M_RESET}"
+local M_SYS_Q="${M_SYS}𝒬${M_RESET}"
+local M_SYS_R="${M_SYS}ℛ${M_RESET}"
+local M_SYS_S="${M_SYS}𝒮${M_RESET}"
+local M_SYS_T="${M_SYS}𝒯${M_RESET}"
+local M_SYS_U="${M_SYS}𝒰${M_RESET}"
+local M_SYS_V="${M_SYS}𝒱${M_RESET}"
+local M_SYS_W="${M_SYS}𝒲${M_RESET}"
+local M_SYS_X="${M_SYS}𝒳${M_RESET}"
+local M_SYS_Y="${M_SYS}𝒴${M_RESET}"
+local M_SYS_Z="${M_SYS}𝒵${M_RESET}"
+# Mengensymbole
+local M_SET_OMEGA="${M_SET}Ω${M_RESET}"
+local M_SET_EMPTY="${M_SET}∅${M_RESET}"
+local M_SET_NATURAL="${M_SET}ℕ${M_RESET}"
+local M_SET_INTEGER="${M_SET}ℤ${M_RESET}"
+local M_SET_RATIONAL="${M_SET}ℚ${M_RESET}"
+local M_SET_REAL="${M_SET}ℝ${M_RESET}"
+local M_SET_COMPLEX="${M_SET}ℂ${M_RESET}"
+local M_SET_POWERSET="${M_SET}𝒫${M_RESET}"
+local M_SET_BORELSET="${M_SET}ℬ${M_RESET}"
+# Mengen-Operatoren
+local M_OP_EQ="${M_OP}=${M_RESET}"
+local M_OP_IN="${M_OP}∈${M_RESET}"
+local M_OP_NOTIN="${M_OP}∉${M_RESET}"
+local M_OP_SUBSET="${M_OP}⊂${M_RESET}"
+local M_OP_SUBSETEQ="${M_OP}⊆${M_RESET}"
+local M_OP_SUPSET="${M_OP}⊃${M_RESET}"
+local M_OP_SUPSETEQ="${M_OP}⊇${M_RESET}"
+local M_OP_UNION="${M_OP}∪${M_RESET}"       # Vereinigung
+local M_OP_UNIONL="${M_OP}⋃${M_RESET}"      # Vereinigung groß
+local M_OP_INTERSECT="${M_OP}∩${M_RESET}"   # Schnittmenge
+local M_OP_DIFF="${M_OP} \\\\ ${M_RESET}"   # Differenzmenge (Backslash)
+local M_OP_COMPLEMENT="${M_OP}ᶜ${M_RESET}"  # Komplement
+local M_OP_TIMES="${M_OP}×${M_RESET}"       # Kartesisches Produkt
+local M_OP_RARROW="${M_OP} ⟹ ${M_RESET}"
+local M_OP_LRARROW="${M_OP} ⟺ ${M_RESET}"
+# Superscripts
+local M_SUP_0="⁰"
+local M_SUP_1="¹"
+local M_SUP_N="ⁿ"
+local M_SUP_PLUS="⁺"
+# Subscripts
+local M_SUB_N="ₙ"
+local M_SUB_1="₁"
+local M_SUB_EQ="₌"
